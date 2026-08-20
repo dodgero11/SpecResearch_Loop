@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WorkflowStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum ComponentStatus {
+  FRESH
+  STALE
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum DecisionType {
+  ACCEPT
+  REJECT
+  OVERRIDE
+}
+
+model ResearchProject {
+  id           String         @id @default(cuid())
+  title        String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  latestSpecId String?
+  latestSpec   SpecIteration? @relation("LatestSpec", fields: [latestSpecId], references: [id])
+  specs        SpecIteration[] @relation("ProjectSpecs")
+  runs         WorkflowRun[]
+  audits       LlmAuditLog[]
+  decisions    DecisionLog[]
+}
+
+model SpecIteration {
+  id             String          @id @default(cuid())
+  projectId      String
+  version        Int
+  data           Json
+  createdAt      DateTime        @default(now())
+  project        ResearchProject @relation("ProjectSpecs", fields: [projectId], references: [id], onDelete: Cascade)
+  latestFor      ResearchProject[] @relation("LatestSpec")
+  runs           WorkflowRun[]
+  @@unique([projectId, version])
+  @@index([projectId, version])
+}
+
+model WorkflowRun {
+  id                String         @id @default(cuid())
+  projectId         String
+  specIterationId   String
+  currentStep       Int            @default(1)
+  completedSteps    Json
+  artifacts         Json
+  latestSpecVersion Int
+  status            WorkflowStatus @default(RUNNING)
+  error             String?
+  startedAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  project           ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  specIteration     SpecIteration  @relation(fields: [specIterationId], references: [id])
+  audits            LlmAuditLog[]
+  componentStates   ComponentState[]
+  @@index([projectId, status])
+}
+
+model ComponentState {
+  id          String          @id @default(cuid())
+  workflowRunId String
+  step        Int
+  status      ComponentStatus @default(FRESH)
+  output      Json?
+  updatedAt   DateTime         @updatedAt
+  workflowRun WorkflowRun     @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+  @@unique([workflowRunId, step])
+}
+
+model LlmAuditLog {
+  id              String       @id @default(cuid())
+  projectId       String
+  workflowRunId   String?
+  task            String
+  specVersionUsed Int
+  inputContext    Json
+  inputTokens     Int?
+  outputTokens    Int?
+  createdAt       DateTime     @default(now())
+  project         ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workflowRun     WorkflowRun? @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
+  @@index([projectId, task, specVersionUsed])
+}
+
+model DecisionLog {
+  id        String       @id @default(cuid())
+  projectId String
+  type      DecisionType
+  target    String
+  value     Json
+  createdAt DateTime     @default(now())
+  project  ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model ConfirmationQuestion {
+  id         String   @id @default(cuid())
+  projectId  String
+  question   String
+  answer     String?
+  answeredAt DateTime?
+  createdAt  DateTime @default(now())
+  @@index([projectId, answeredAt])
+}
