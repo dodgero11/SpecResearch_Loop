@@ -9,7 +9,8 @@
 6. Hardening: DTO validation, transaction tests, API documentation, and operational logging.
 
 ## Current status
-- Foundation, immutable versioning, idempotency, dependency invalidation, decision history, confirmation questions, HTTP controllers, local adapters, and focused tests are implemented.
+- Foundation, immutable versioning, idempotency, dependency invalidation, decision history, confirmation questions, HTTP controllers, local adapters, five-judge panel orchestration, and focused tests are implemented.
+- Real external provider adapters remain an AI integration task behind the typed ports documented in `../ai/ai-api.md`.
 - The initial migration and additive migration `20260821120814_add_idempotency_and_artifacts` are applied.
 - Flutter integration is deferred because the frontend project is not available.
 

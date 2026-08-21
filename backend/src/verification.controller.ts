@@ -2,7 +2,7 @@ import { Body, Controller, Post } from '@nestjs/common';
 import { VerificationService } from './verification.service';
 import { VerifyClaimDto } from './dto/interaction.dto';
 
-@Controller('verification')
+@Controller('internal/ai/verification')
 export class VerificationController {
   constructor(private readonly verification: VerificationService) {}
 

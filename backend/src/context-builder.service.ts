@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ProjectService, SpecData } from './project.service';
 
-export type ContextTask = 'gap-judge' | 'experiment-judge' | 'claim-verifier';
+export type ContextTask = 'problem-judge' | 'gap-judge' | 'contribution-judge' | 'claim-judge' | 'experiment-judge' | 'claim-verifier';
 export type BuiltContext = { specVersion: number; inputContext: Prisma.InputJsonObject };
 
 @Injectable()
@@ -13,7 +13,10 @@ export class ContextBuilderService {
     const spec = await this.projects.latestSpec(projectId);
     const data = spec.data as SpecData;
     const fieldsByTask: Record<ContextTask, string[]> = {
+      'problem-judge': ['idea', 'problem', 'relatedWork'],
       'gap-judge': ['problem', 'gap', 'relatedWork'],
+      'contribution-judge': ['problem', 'gap', 'contribution', 'relatedWork'],
+      'claim-judge': ['problem', 'gap', 'contribution', 'claims', 'relatedWork'],
       'experiment-judge': ['claims', 'baselines', 'experiment'],
       'claim-verifier': ['claim', 'evidence'],
     };

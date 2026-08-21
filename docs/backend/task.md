@@ -15,8 +15,8 @@ Tasks are independent only after their inputs and outputs are fixed. Each task o
 **Acceptance:** a persisted checkpoint resumes at the first incomplete step and does not invoke completed steps again.
 
 ## TASK-004: Context and judge contracts [IMPLEMENTED]
-**Scope:** allowlisted context builder, LLM port, audit service, judge endpoint, and adapter contracts.  
-**Acceptance:** latest spec version is used and recorded in `LlmAuditLog`.
+**Scope:** allowlisted context builder, LLM port, five independent judge executions, panel endpoint, audit service, and adapter contracts.  
+**Acceptance:** latest spec version is used and recorded in `LlmAuditLog`; the panel runs Problem, Gap, Contribution, Claim, and Experiment judges independently and reports partial failure.
 
 ## TASK-005: Evidence verification [IMPLEMENTED]
 **Scope:** search, rerank, and NLI ports, local adapters, verification service, endpoint, and tests.  

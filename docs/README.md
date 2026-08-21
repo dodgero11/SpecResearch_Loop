@@ -18,4 +18,9 @@ Backend implementation and operations:
 - [Task Contracts](backend/task.md)
 - [Local Development and Testing](backend/local-development.md)
 
+## AI integration
+
+- [AI Integration Documentation](ai/README.md)
+- [AI API Contract](ai/ai-api.md)
+
 The Flutter project is not available yet, so frontend integration remains deferred.

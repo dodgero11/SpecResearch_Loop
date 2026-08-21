@@ -54,11 +54,15 @@ describe('HTTP API', () => {
       .expect(200);
     expect(updated.body.version).toBe(2);
 
-    const judge = await request(app.getHttpServer()).post(`/projects/${projectId}/judges/gap`).expect(201);
+    const judge = await request(app.getHttpServer()).post(`/internal/ai/projects/${projectId}/judges/gap`).expect(201);
     expect(judge.body).toEqual(expect.objectContaining({ task: 'gap-judge', verdict: 'REVIEW_REQUIRED' }));
 
+    const panel = await request(app.getHttpServer()).post(`/internal/ai/projects/${projectId}/judges/panel`).expect(201);
+    expect(panel.body.status).toBe('COMPLETED');
+    expect(panel.body.judges).toHaveLength(5);
+
     const verification = await request(app.getHttpServer())
-      .post('/verification/claims')
+      .post('/internal/ai/verification/claims')
       .send({ claim: 'A test claim' })
       .expect(201);
     expect(verification.body.outcome).toBe('INSUFFICIENT');

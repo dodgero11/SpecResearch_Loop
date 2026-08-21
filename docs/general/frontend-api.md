@@ -71,12 +71,9 @@ Updates create immutable versions. Gap updates mark Contribution, Claim, Evidenc
 
 Workflow statuses are `RUNNING`, `COMPLETED`, and `FAILED`. Workflow responses include `id`, `projectId`, `specIterationId`, `currentStep`, `completedSteps`, `artifacts`, `latestSpecVersion`, `status`, and `error`.
 
-## Judges and verification
+## AI boundary
 
-- `POST /projects/:projectId/judges/gap`
-- `POST /verification/claims` with `{ "claim": "The proposed method improves reproducibility" }`
-
-NLI outcomes are `SUPPORTED`, `CONTRADICTED`, and `INSUFFICIENT`. Local adapters return deterministic results for interface testing.
+The frontend does not call AI or provider endpoints directly. AI execution is handled by backend workflow services and backend-internal diagnostic routes documented in [ai-api.md](../ai/ai-api.md).
 
 ## Human decisions
 
