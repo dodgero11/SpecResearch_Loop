@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+
+export const SEARCH_PORT = Symbol('SEARCH_PORT');
+export const RERANK_PORT = Symbol('RERANK_PORT');
+export const NLI_PORT = Symbol('NLI_PORT');
 
 export type NliOutcome = 'SUPPORTED' | 'CONTRADICTED' | 'INSUFFICIENT';
 export type EvidenceCandidate = { id: string; text: string; score: number };
@@ -10,9 +14,9 @@ export interface NliPort { classify(claim: string, evidence: EvidenceCandidate[]
 @Injectable()
 export class VerificationService {
   constructor(
-    private readonly search: SearchPort,
-    private readonly rerank: RerankPort,
-    private readonly nli: NliPort,
+    @Inject(SEARCH_PORT) private readonly search: SearchPort,
+    @Inject(RERANK_PORT) private readonly rerank: RerankPort,
+    @Inject(NLI_PORT) private readonly nli: NliPort,
   ) {}
 
   async verify(claim: string): Promise<{ outcome: NliOutcome; evidence: EvidenceCandidate[] }> {

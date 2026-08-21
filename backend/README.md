@@ -11,4 +11,6 @@ NestJS modular monolith for immutable research specifications, durable workflow 
 
 `npm test`, `npm run lint`, and `npm run build` are the completion gates.
 
+The HTTP contract is documented in `../docs/general/frontend-api.md`. Local database and manual API instructions are in `../docs/backend/local-development.md`.
+
 The LLM and search integrations are ports in `src/integrations`; production adapters can be supplied without changing workflow state management.

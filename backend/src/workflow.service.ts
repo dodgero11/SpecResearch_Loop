@@ -24,6 +24,16 @@ export class WorkflowService {
     return run;
   }
 
+  async status(runId: string) {
+    const run = await this.prisma.workflowRun.findUnique({ where: { id: runId } });
+    if (!run) throw new NotFoundException(`Workflow run ${runId} was not found`);
+    return run;
+  }
+
+  async resume(runId: string): Promise<void> {
+    await this.startOrResume(runId, async (step) => ({ step, status: 'completed', source: 'local-adapter' }), 7);
+  }
+
   async startOrResume(runId: string, executeStep: WorkflowStep, finalStep: number): Promise<void> {
     const run = await this.prisma.workflowRun.findUnique({ where: { id: runId } });
     if (!run) throw new NotFoundException(`Workflow run ${runId} was not found`);
