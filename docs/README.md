@@ -8,6 +8,7 @@ Product behavior and cross-team contracts:
 - [Acceptance Criteria](general/acceptance-criteria.md)
 - [Product Architecture](general/architecture.md)
 - [Frontend API Contract](general/frontend-api.md)
+- [AI API Contract](ai/ai-api.md)
 
 ## Backend
 
@@ -17,10 +18,3 @@ Backend implementation and operations:
 - [Implementation Plan](backend/plan.md)
 - [Task Contracts](backend/task.md)
 - [Local Development and Testing](backend/local-development.md)
-
-## AI integration
-
-- [AI Integration Documentation](ai/README.md)
-- [AI API Contract](ai/ai-api.md)
-
-The Flutter project is not available yet, so frontend integration remains deferred.
