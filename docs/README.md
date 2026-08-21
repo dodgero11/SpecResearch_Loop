@@ -8,7 +8,7 @@ Product behavior and cross-team contracts:
 - [Acceptance Criteria](general/acceptance-criteria.md)
 - [Product Architecture](general/architecture.md)
 - [Frontend API Contract](general/frontend-api.md)
-- [AI API Contract](ai/ai-api.md)
+- [AI API Contract](general/ai-api.md)
 
 ## Backend
 
