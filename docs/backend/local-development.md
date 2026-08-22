@@ -24,6 +24,7 @@ From `backend/`:
 
 ```powershell
 $env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/spec_research_loop?schema=public"
+$env:INTERNAL_API_KEY="local-dev-key"
 npx prisma migrate deploy
 npx prisma generate
 ```
@@ -33,6 +34,14 @@ npx prisma generate
 ```powershell
 npm run start:dev
 ```
+
+For internal AI routes, include the header:
+
+```powershell
+$xApiKey = $env:INTERNAL_API_KEY
+```
+
+and send `x-api-key: $xApiKey` with requests to `/internal/ai/*` endpoints.
 
 The API is available at `http://localhost:3000`.
 

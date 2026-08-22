@@ -10,12 +10,14 @@
 
 ## Current status
 - Foundation, immutable versioning, idempotency, dependency invalidation, decision history, confirmation questions, HTTP controllers, local adapters, five-judge panel orchestration, and focused tests are implemented.
-- Real external provider adapters remain an AI integration task behind the typed ports documented in `../ai/ai-api.md`.
+- The backend MVP is functionally complete and passes the current test, lint, and build gates.
+- Real external provider adapters remain an AI integration task behind the typed ports documented in `../general/ai-api.md`.
 - The initial migration and additive migration `20260821120814_add_idempotency_and_artifacts` are applied.
 - Flutter integration is deferred because the frontend project is not available.
+- Remaining backend-only work is production hardening: internal route protection, runtime configuration, logging/observability, workflow concurrency checks, API contract polish, structured error handling, and deployment readiness.
 
 ## Definition of done
-Every task has a typed contract, focused tests, no raw chat history in an LLM request, and passing `npm test`, `npm run lint`, and `npm run build`. PostgreSQL integration tests are required for transaction and uniqueness behavior.
+Every task has a typed contract, focused tests, no raw chat history in an LLM request, and passing `npm test`, `npm run lint`, and `npm run build`. PostgreSQL integration tests are required for transaction and uniqueness behavior. For a production-grade backend, the following backend-only hardening items must also be covered: internal auth, secret-safe configuration, observability, resilience checks, and release-readiness documentation.
 
 ## Risks and mitigations
 - Stale spec: resolve the maximum version immediately before context construction and audit it.

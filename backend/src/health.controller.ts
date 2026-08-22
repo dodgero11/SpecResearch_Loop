@@ -9,9 +9,21 @@ export class HealthController {
   async check() {
     try {
       await this.prisma.$queryRaw`SELECT 1`;
-      return { status: 'ok', database: 'ok' };
+      return {
+        status: 'ok',
+        database: 'ok',
+        dependencies: {
+          database: 'ok',
+        },
+      };
     } catch {
-      throw new ServiceUnavailableException({ status: 'error', database: 'unavailable' });
+      throw new ServiceUnavailableException({
+        status: 'error',
+        database: 'unavailable',
+        dependencies: {
+          database: 'unavailable',
+        },
+      });
     }
   }
 }

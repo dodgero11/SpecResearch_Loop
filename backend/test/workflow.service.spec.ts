@@ -30,4 +30,13 @@ describe('WorkflowService', () => {
     }));
     expect(ComponentStatus.COMPLETED).toBe('COMPLETED');
   });
+
+  it('classifies transient provider failures as retryable and malformed errors as terminal', () => {
+    const service = new WorkflowService({} as never);
+
+    expect(service.shouldRetryError(new Error('Request timed out'))).toBe(true);
+    expect(service.shouldRetryError(new Error('429 Too Many Requests'))).toBe(true);
+    expect(service.shouldRetryError(new Error('bad request'))).toBe(false);
+    expect(service.shouldRetryError(new Error('Unauthorized'))).toBe(false);
+  });
 });

@@ -91,7 +91,7 @@ The backend records the exact context and `specVersionUsed` in `LlmAuditLog`.
 
 ## Backend-internal diagnostic endpoints
 
-These routes are for backend integration testing and provider diagnostics. They are not part of the frontend API and should not be called from Flutter or browser code. They are not an authentication boundary by themselves; production deployments must protect internal routes with the backend's access controls.
+These routes are for backend integration testing and provider diagnostics. They are not part of the frontend API and should not be called from Flutter or browser code. In production they are protected by an internal API key guard requiring the `x-api-key` header. The required runtime value is `INTERNAL_API_KEY`.
 
 ### Run one Gap Judge
 
@@ -150,6 +150,9 @@ The backend runs Search -> Rerank -> NLI and returns one NLI outcome.
 The API key belongs only in backend runtime configuration, for example:
 
 ```text
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/spec_research_loop?schema=public
+PORT=3000
+INTERNAL_API_KEY=<secret-for-internal-diagnostics>
 LLM_PROVIDER=openai
 LLM_API_KEY=<secret>
 LLM_MODEL=<model-name>

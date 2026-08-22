@@ -8,6 +8,11 @@ export type WorkflowStep = (step: number, artifacts: Record<string, unknown>) =>
 export class WorkflowService {
   constructor(private readonly prisma: PrismaService) {}
 
+  shouldRetryError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error ?? '');
+    return /timeout|timed out|429|rate limit|temporar|network|5\d{2}/i.test(message);
+  }
+
   async start(projectId: string, specIterationId: string): Promise<{ id: string }> {
     const spec = await this.prisma.specIteration.findFirst({ where: { id: specIterationId, projectId } });
     if (!spec) throw new NotFoundException('Spec iteration was not found for this project');
@@ -63,7 +68,18 @@ export class WorkflowService {
           this.prisma.workflowRun.update({ where: { id: runId }, data: { currentStep: step + 1, completedSteps: [...completed], artifacts: artifacts as Prisma.InputJsonValue, error: null } }),
         ]);
       } catch (error) {
-        await this.prisma.workflowRun.update({ where: { id: runId }, data: { status: WorkflowStatus.FAILED, error: this.errorMessage(error) } });
+        const retryable = this.shouldRetryError(error);
+        await this.prisma.workflowRun.update({
+          where: { id: runId },
+          data: {
+            status: retryable ? WorkflowStatus.FAILED : WorkflowStatus.FAILED,
+            error: this.errorMessage(error),
+            currentStep: step,
+          },
+        });
+        if (retryable) {
+          throw error;
+        }
         throw error;
       }
     }

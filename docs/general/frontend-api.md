@@ -22,7 +22,19 @@ The default API base URL is `http://localhost:3000`.
 - Invalid request bodies return HTTP `400`.
 - Missing resources return HTTP `404`.
 - Readiness failures return HTTP `503`.
-- Error responses have the shape `{ "statusCode": number, "message": string | string[], "error": string }`.
+- Error responses have the shape:
+
+```json
+{
+  "statusCode": 400,
+  "error": "Bad Request",
+  "message": "Invalid payload",
+  "path": "/projects",
+  "method": "POST"
+}
+```
+
+The backend also emits `x-request-id` on every response for correlation and diagnostics.
 
 ## Project and specification
 
@@ -87,6 +99,18 @@ Decision types are `ACCEPT`, `REJECT`, and `OVERRIDE`. Decisions are append-only
 
 ## Health check
 
-`GET /health` returns `{ "status": "ok", "database": "ok" }` when the API and database are available.
+`GET /health` returns an object similar to:
+
+```json
+{
+  "status": "ok",
+  "database": "ok",
+  "dependencies": {
+    "database": "ok"
+  }
+}
+```
+
+If the database is not available, the API returns HTTP `503` with the same dependency information and `database: "unavailable"`.
 
 ***

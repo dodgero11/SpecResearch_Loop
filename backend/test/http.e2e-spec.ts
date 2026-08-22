@@ -28,7 +28,14 @@ describe('HTTP API', () => {
   });
 
   it('supports the project, spec, judge, verification, and human-decision flow', async () => {
-    await request(app.getHttpServer()).get('/health').expect(200).expect({ status: 'ok', database: 'ok' });
+    await request(app.getHttpServer())
+      .get('/health')
+      .expect(200)
+      .expect({
+        status: 'ok',
+        database: 'ok',
+        dependencies: { database: 'ok' },
+      });
 
     const project = await request(app.getHttpServer())
       .post('/projects')
@@ -54,15 +61,22 @@ describe('HTTP API', () => {
       .expect(200);
     expect(updated.body.version).toBe(2);
 
-    const judge = await request(app.getHttpServer()).post(`/internal/ai/projects/${projectId}/judges/gap`).expect(201);
+    const judge = await request(app.getHttpServer())
+      .post(`/internal/ai/projects/${projectId}/judges/gap`)
+      .set('x-api-key', 'local-dev-key')
+      .expect(201);
     expect(judge.body).toEqual(expect.objectContaining({ task: 'gap-judge', verdict: 'REVIEW_REQUIRED' }));
 
-    const panel = await request(app.getHttpServer()).post(`/internal/ai/projects/${projectId}/judges/panel`).expect(201);
+    const panel = await request(app.getHttpServer())
+      .post(`/internal/ai/projects/${projectId}/judges/panel`)
+      .set('x-api-key', 'local-dev-key')
+      .expect(201);
     expect(panel.body.status).toBe('COMPLETED');
     expect(panel.body.judges).toHaveLength(5);
 
     const verification = await request(app.getHttpServer())
       .post('/internal/ai/verification/claims')
+      .set('x-api-key', 'local-dev-key')
       .send({ claim: 'A test claim' })
       .expect(201);
     expect(verification.body.outcome).toBe('INSUFFICIENT');
