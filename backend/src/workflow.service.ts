@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { ComponentStatus, Prisma, WorkflowStatus } from '@prisma/client';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ComponentStatus, Prisma, WorkflowPhase, WorkflowStatus } from '@prisma/client';
 import { PrismaService } from './prisma.service';
 
 export type WorkflowStep = (step: number, artifacts: Record<string, unknown>) => Promise<Record<string, unknown>>;
@@ -35,6 +35,23 @@ export class WorkflowService {
     return run;
   }
 
+  async advancePhase(runId: string, targetPhase: WorkflowPhase) {
+    const run = await this.status(runId);
+    if (run.status === WorkflowStatus.COMPLETED) throw new BadRequestException('Completed workflows cannot change phase');
+    const phases = Object.values(WorkflowPhase);
+    const currentIndex = phases.indexOf(run.currentPhase);
+    const targetIndex = phases.indexOf(targetPhase);
+    if (targetIndex !== currentIndex + 1) {
+      throw new BadRequestException(`Workflow phase must advance from ${run.currentPhase} to the next phase`);
+    }
+    const completedPhases = new Set(this.asPhases(run.completedPhases));
+    completedPhases.add(run.currentPhase);
+    return this.prisma.workflowRun.update({
+      where: { id: runId },
+      data: { currentPhase: targetPhase, completedPhases: [...completedPhases] },
+    });
+  }
+
   async resume(runId: string): Promise<void> {
     await this.startOrResume(runId, async (step) => ({ step, status: 'completed', source: 'local-adapter' }), 7);
   }
@@ -45,7 +62,8 @@ export class WorkflowService {
     if (run.status === WorkflowStatus.COMPLETED) return;
 
     const completed = new Set(this.asNumbers(run.completedSteps));
-      const artifacts = this.asRecord(run.artifacts);
+    const completedPhases = new Set(this.asPhases(run.completedPhases));
+    const artifacts = this.asRecord(run.artifacts);
     for (let step = run.currentStep; step <= finalStep; step += 1) {
       if (completed.has(step)) continue;
       const existing = await this.prisma.componentState.findUnique({ where: { workflowRunId_step: { workflowRunId: runId, step } } });
@@ -63,9 +81,12 @@ export class WorkflowService {
         const output = await executeStep(step, { ...artifacts });
           artifacts[`step${step}`] = output as Prisma.JsonObject;
         completed.add(step);
+        const phase = this.phaseForStep(step);
+        completedPhases.add(phase);
+        const currentPhase = this.maxPhase(run.currentPhase, phase);
         await this.prisma.$transaction([
           this.prisma.componentState.update({ where: { workflowRunId_step: { workflowRunId: runId, step } }, data: { status: ComponentStatus.COMPLETED, output: output as Prisma.InputJsonValue } }),
-          this.prisma.workflowRun.update({ where: { id: runId }, data: { currentStep: step + 1, completedSteps: [...completed], artifacts: artifacts as Prisma.InputJsonValue, error: null } }),
+          this.prisma.workflowRun.update({ where: { id: runId }, data: { currentStep: step + 1, currentPhase, completedSteps: [...completed], completedPhases: [...completedPhases], artifacts: artifacts as Prisma.InputJsonValue, error: null } }),
         ]);
       } catch (error) {
         const retryable = this.shouldRetryError(error);
@@ -83,11 +104,26 @@ export class WorkflowService {
         throw error;
       }
     }
-    await this.prisma.workflowRun.update({ where: { id: runId }, data: { status: WorkflowStatus.COMPLETED, currentStep: finalStep + 1 } });
+    await this.prisma.workflowRun.update({ where: { id: runId }, data: { status: WorkflowStatus.COMPLETED, currentStep: finalStep + 1, currentPhase: WorkflowPhase.FINAL_SPECIFICATION, completedPhases: Object.values(WorkflowPhase) } });
   }
 
   private asNumbers(value: Prisma.JsonValue): number[] {
     return Array.isArray(value) ? value.filter((item): item is number => typeof item === 'number') : [];
+  }
+
+  private asPhases(value: Prisma.JsonValue): WorkflowPhase[] {
+    const phases = new Set(Object.values(WorkflowPhase));
+    return Array.isArray(value) ? value.filter((item): item is WorkflowPhase => typeof item === 'string' && phases.has(item as WorkflowPhase)) : [];
+  }
+
+  private phaseForStep(step: number): WorkflowPhase {
+    const phases = [WorkflowPhase.IDEA, WorkflowPhase.IDEA_DECOMPOSITION, WorkflowPhase.RESEARCH_AND_GAP, WorkflowPhase.CONTRIBUTION_AND_EXPERIMENT, WorkflowPhase.JUDGES_AND_CONFIRMATION, WorkflowPhase.FINAL_SPECIFICATION];
+    return phases[Math.min(step - 1, phases.length - 1)] ?? WorkflowPhase.IDEA;
+  }
+
+  private maxPhase(first: WorkflowPhase, second: WorkflowPhase): WorkflowPhase {
+    const phases = Object.values(WorkflowPhase);
+    return phases[Math.max(phases.indexOf(first), phases.indexOf(second))] ?? WorkflowPhase.IDEA;
   }
 
   private asRecord(value: Prisma.JsonValue): Record<string, Prisma.JsonValue> {

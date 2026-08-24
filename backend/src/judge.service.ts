@@ -6,7 +6,7 @@ import { PrismaService } from './prisma.service';
 
 export const LLM_PORT = Symbol('LLM_PORT');
 
-export const JUDGE_TYPES = ['problem', 'gap', 'contribution', 'claim', 'experiment'] as const;
+export const JUDGE_TYPES = ['gap', 'contribution', 'experiment', 'evidence', 'conference-readiness'] as const;
 export type JudgeType = typeof JUDGE_TYPES[number];
 export type JudgeTask = `${JudgeType}-judge`;
 export type JudgeResult = {

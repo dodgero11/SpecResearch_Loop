@@ -18,6 +18,18 @@ Given a claim and retrieved evidence, the verifier returns exactly one NLI outco
 ## AC-06: Human decision trace
 Given a judge finding, accepting, rejecting, or overriding it appends a decision record. No prior decision is overwritten.
 
+## AC-07: Generalized dependency invalidation
+Given a completed version with all nodes, when `problem` changes, `gap`, `contribution`, `claim`, `experiment`, and `judge` become STALE; when `claim` changes only `experiment` and `judge` become STALE; when `judge` changes nothing becomes STALE. The invalidation query reports the correct stale and fresh sets.
+
+## AC-08: Selective recomputation
+Given a version with stale nodes, when recompute runs, the stale judges execute in dependency order and a new immutable version is created with fresh artifacts. Recompute is rejected with HTTP 400 while a workflow run is in progress or when an invalid node name is supplied.
+
+## AC-09: Card-driven invalidation
+Given an updated `GAP_CANDIDATE` card, the spec is cloned to a new version and `contribution`, `claim`, `experiment`, and `judge` artifacts become STALE, mirroring spec-node invalidation.
+
+## AC-10: Evidence and readiness judges
+Given a spec with claims and cited related work, the `evidence` judge evaluates whether each citation supports the accompanying content, and the `conference-readiness` judge scores originality, significance, soundness, clarity, and reproducibility independently. The panel runs `gap`, `contribution`, `experiment`, `evidence`, and `conference-readiness` judges and reports `PARTIAL_FAILURE` if any differ in spec version or fail.
+
 ## Contract verification
 Acceptance scenarios are verified by backend unit, integration, and HTTP tests. Frontend-specific scenarios will be added when the Flutter client is available.
 ***

@@ -1,5 +1,5 @@
 import { DecisionType } from '@prisma/client';
-import { IsEnum, IsObject, IsString, MinLength } from 'class-validator';
+import { IsEnum, IsObject, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class RecordDecisionDto {
   @IsEnum(DecisionType)
@@ -17,6 +17,10 @@ export class CreateQuestionDto {
   @IsString()
   @MinLength(1)
   question!: string;
+
+  @IsOptional()
+  @IsString()
+  example?: string;
 }
 
 export class AnswerQuestionDto {

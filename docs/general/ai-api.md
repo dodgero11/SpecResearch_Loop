@@ -38,11 +38,11 @@ export interface LlmPort {
 The adapter receives one task at a time:
 
 ```text
-problem-judge
- gap-judge
+gap-judge
 contribution-judge
- claim-judge
 experiment-judge
+evidence-judge
+conference-readiness-judge
 ```
 
 It must return structured JSON. Do not return prose that requires backend string parsing.
@@ -80,12 +80,11 @@ The backend `ContextBuilderService` constructs context before calling the LLM. T
 
 | Task | Allowed fields |
 |---|---|
-| `problem-judge` | `idea`, `problem`, `relatedWork` |
 | `gap-judge` | `problem`, `gap`, `relatedWork` |
 | `contribution-judge` | `problem`, `gap`, `contribution`, `relatedWork` |
-| `claim-judge` | `problem`, `gap`, `contribution`, `claims`, `relatedWork` |
 | `experiment-judge` | `claims`, `baselines`, `experiment` |
-| `claim-verifier` | `claim`, `evidence` |
+| `evidence-judge` | `claims`, `evidence`, `relatedWork` |
+| `conference-readiness-judge` | `problem`, `gap`, `contribution`, `claims`, `evidence`, `experiment`, `relatedWork` |
 
 The backend records the exact context and `specVersionUsed` in `LlmAuditLog`.
 
@@ -116,11 +115,11 @@ The backend executes five independent calls and returns:
   "status": "COMPLETED",
   "judges": [
     {
-      "type": "problem",
+      "type": "gap",
       "status": "COMPLETED",
       "specVersionUsed": 4,
       "output": {
-        "task": "problem-judge",
+        "task": "gap-judge",
         "verdict": "REVIEW_REQUIRED",
         "issues": []
       }
@@ -129,7 +128,7 @@ The backend executes five independent calls and returns:
 }
 ```
 
-The `judges` array contains `problem`, `gap`, `contribution`, `claim`, and `experiment` results. `PARTIAL_FAILURE` means at least one provider call failed or returned a result for a different spec version.
+The `judges` array contains `gap`, `contribution`, `experiment`, `evidence`, and `conference-readiness` results. `PARTIAL_FAILURE` means at least one provider call failed or returned a result for a different spec version.
 
 ### Verify a claim
 

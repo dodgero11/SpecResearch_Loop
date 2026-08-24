@@ -55,11 +55,70 @@ describe('HTTP API', () => {
     const latest = await request(app.getHttpServer()).get(`/projects/${projectId}/spec/latest`).expect(200);
     expect(latest.body.version).toBe(1);
 
+    const problemCard = await request(app.getHttpServer())
+      .post(`/projects/${projectId}/cards`)
+      .send({ type: 'PROBLEM', content: 'Manual prompt may be unstable', status: 'CONFIRMED', idempotencyKey: 'problem-card-1' })
+      .expect(201);
+    expect(problemCard.body.card.type).toBe('PROBLEM');
+
+    const questionCard = await request(app.getHttpServer())
+      .post(`/projects/${projectId}/cards`)
+      .send({ type: 'RESEARCH_QUESTION', content: 'Do repeated optimization rounds reduce unsupported claims?', idempotencyKey: 'question-card-1' })
+      .expect(201);
+    const cards = await request(app.getHttpServer()).get(`/projects/${projectId}/cards`).expect(200);
+    expect(cards.body.cards).toHaveLength(2);
+    const currentProblem = cards.body.cards.find((card: { type: string }) => card.type === 'PROBLEM');
+    const currentQuestion = cards.body.cards.find((card: { type: string }) => card.type === 'RESEARCH_QUESTION');
+    expect(questionCard.body.specVersion).toBeGreaterThan(problemCard.body.specVersion);
+
+    await request(app.getHttpServer())
+      .post(`/projects/${projectId}/card-links`)
+      .send({ sourceCardId: currentProblem.id, targetCardId: currentQuestion.id, type: 'SUPPORTS', idempotencyKey: 'card-link-1' })
+      .expect(201);
+    const graph = await request(app.getHttpServer()).get(`/projects/${projectId}/card-links`).expect(200);
+    expect(graph.body.links).toHaveLength(1);
+    const originalLineageId = currentProblem.lineageId;
+    const summary = await request(app.getHttpServer()).get(`/projects/${projectId}/summary`).expect(200);
+    expect(summary.body.latestSpec.version).toBe(graph.body.specVersion);
+    expect(summary.body.cards).toHaveLength(2);
+    expect(summary.body.links).toHaveLength(1);
+    const history = await request(app.getHttpServer()).get(`/projects/${projectId}/specs`).expect(200);
+    expect(history.body.specs).toHaveLength(4);
+
+    await request(app.getHttpServer()).delete(`/projects/${projectId}/card-links/${graph.body.links[0].id}`).expect(200);
+    const afterLinkRemoval = await request(app.getHttpServer()).get(`/projects/${projectId}/cards`).expect(200);
+    const removableCard = afterLinkRemoval.body.cards.find((card: { type: string }) => card.type === 'RESEARCH_QUESTION');
+    await request(app.getHttpServer()).delete(`/projects/${projectId}/cards/${removableCard.id}`).expect(200);
+    const afterCardRemoval = await request(app.getHttpServer()).get(`/projects/${projectId}/cards`).expect(200);
+    expect(afterCardRemoval.body.cards).toHaveLength(1);
+    expect(afterCardRemoval.body.cards[0].lineageId).toBe(originalLineageId);
+
     const updated = await request(app.getHttpServer())
       .put(`/projects/${projectId}/spec/nodes/gap`)
       .send({ value: 'new gap', idempotencyKey: 'gap-update-1' })
       .expect(200);
-    expect(updated.body.version).toBe(2);
+    expect(updated.body.version).toBe(7);
+
+    const invalidations = await request(app.getHttpServer())
+      .get(`/projects/${projectId}/invalidations`)
+      .expect(200);
+    expect(invalidations.body.specVersion).toBe(7);
+    expect(invalidations.body.staleNodes).toEqual(expect.arrayContaining(['contribution', 'claim', 'experiment', 'judge']));
+    expect(invalidations.body.freshNodes).toEqual(expect.arrayContaining(['problem', 'related_work', 'gap']));
+
+    const recomputed = await request(app.getHttpServer())
+      .post(`/projects/${projectId}/recompute`)
+      .send({})
+      .expect(201);
+    expect(recomputed.body.specVersion).toBe(8);
+    expect(recomputed.body.recomputedNodes).toEqual(expect.arrayContaining(['contribution', 'claim', 'experiment', 'judge']));
+    expect(recomputed.body.judgeResults.length).toBeGreaterThan(0);
+
+    const afterRecompute = await request(app.getHttpServer())
+      .get(`/projects/${projectId}/invalidations`)
+      .expect(200);
+    expect(afterRecompute.body.specVersion).toBe(8);
+    expect(afterRecompute.body.staleNodes).toEqual([]);
 
     const judge = await request(app.getHttpServer())
       .post(`/internal/ai/projects/${projectId}/judges/gap`)
@@ -100,8 +159,18 @@ describe('HTTP API', () => {
       .post('/workflows')
       .send({ projectId, specIterationId: updated.body.id })
       .expect(201);
+    const phase = await request(app.getHttpServer())
+      .put(`/workflows/${run.body.id}/phase`)
+      .send({ phase: 'IDEA_DECOMPOSITION' })
+      .expect(200);
+    expect(phase.body.phase).toBe('IDEA_DECOMPOSITION');
+    await request(app.getHttpServer())
+      .put(`/workflows/${run.body.id}/phase`)
+      .send({ phase: 'FINAL_SPECIFICATION' })
+      .expect(400);
     const completed = await request(app.getHttpServer()).post(`/workflows/${run.body.id}/resume`).expect(202);
     expect(completed.body.status).toBe('COMPLETED');
+    expect(completed.body.phase).toBe('FINAL_SPECIFICATION');
     expect(completed.body.completedSteps).toEqual([1, 2, 3, 4, 5, 6, 7]);
   });
 

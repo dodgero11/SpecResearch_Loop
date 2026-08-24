@@ -1,15 +1,29 @@
 import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
 import { ProjectService } from './project.service';
-import { CreateProjectDto, CreateSpecDto, UpdateNodeDto } from './dto/project.dto';
+import { RecomputeService } from './recompute.service';
+import { CreateProjectDto, CreateSpecDto, RecomputeDto, UpdateNodeDto } from './dto/project.dto';
 import { toSpecResponse } from './api-response';
 
 @Controller('projects')
 export class ProjectController {
-  constructor(private readonly projects: ProjectService) {}
+  constructor(
+    private readonly projects: ProjectService,
+    private readonly recomputeService: RecomputeService,
+  ) {}
 
   @Post()
   create(@Body() body: CreateProjectDto): Promise<{ id: string; title: string }> {
     return this.projects.create(body.title);
+  }
+
+  @Get(':projectId/summary')
+  summary(@Param('projectId') projectId: string) {
+    return this.projects.summary(projectId);
+  }
+
+  @Get(':projectId/specs')
+  history(@Param('projectId') projectId: string) {
+    return this.projects.history(projectId);
   }
 
   @Get(':projectId/spec/latest')
@@ -25,5 +39,15 @@ export class ProjectController {
   @Put(':projectId/spec/nodes/:node')
   updateNode(@Param('projectId') projectId: string, @Param('node') node: string, @Body() body: UpdateNodeDto) {
     return this.projects.updateNode(projectId, node, body.value, body.idempotencyKey).then(toSpecResponse);
+  }
+
+  @Get(':projectId/invalidations')
+  invalidations(@Param('projectId') projectId: string) {
+    return this.projects.getInvalidations(projectId);
+  }
+
+  @Post(':projectId/recompute')
+  recompute(@Param('projectId') projectId: string, @Body() body: RecomputeDto) {
+    return this.recomputeService.recompute(projectId, body.nodes);
   }
 }

@@ -32,6 +32,42 @@ enum DecisionType {
   OVERRIDE
 }
 
+enum WorkflowPhase {
+  IDEA
+  IDEA_DECOMPOSITION
+  RESEARCH_AND_GAP
+  CONTRIBUTION_AND_EXPERIMENT
+  JUDGES_AND_CONFIRMATION
+  FINAL_SPECIFICATION
+}
+
+enum SpecCardType {
+  PROBLEM
+  RESEARCH_QUESTION
+  GAP_CANDIDATE
+  CONTRIBUTION
+  CLAIM
+  EVIDENCE
+  CONSTRAINT
+  OPEN_QUESTION
+}
+
+enum SpecCardStatus {
+  CONFIRMED
+  PROPOSED
+  MISSING
+  AMBIGUOUS
+  UNSUPPORTED
+  CONFLICT
+}
+
+enum SpecCardLinkType {
+  CLAIM_EVIDENCE
+  DEPENDS_ON
+  SUPPORTS
+  CONTRADICTS
+}
+
 model ResearchProject {
   id           String              @id @default(cuid())
   title        String
@@ -45,6 +81,8 @@ model ResearchProject {
   decisions    DecisionLog[]
   idempotency  IdempotencyRecord[]
   artifacts    SpecArtifact[]
+  cards        SpecCard[]
+  cardLinks    SpecCardLink[]
 }
 
 model SpecIteration {
@@ -57,6 +95,7 @@ model SpecIteration {
   latestFor ResearchProject[] @relation("LatestSpec")
   runs      WorkflowRun[]
   artifacts SpecArtifact[]
+  cards     SpecCard[]
 
   @@unique([projectId, version])
   @@index([projectId, version])
@@ -67,7 +106,9 @@ model WorkflowRun {
   projectId         String
   specIterationId   String
   currentStep       Int              @default(1)
+  currentPhase      WorkflowPhase    @default(IDEA)
   completedSteps    Json
+  completedPhases   Json             @default("[]")
   artifacts         Json
   latestSpecVersion Int
   status            WorkflowStatus   @default(RUNNING)
@@ -92,6 +133,43 @@ model ComponentState {
   workflowRun   WorkflowRun     @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
 
   @@unique([workflowRunId, step])
+}
+
+model SpecCard {
+  id              String          @id @default(cuid())
+  lineageId       String          @default(cuid())
+  projectId       String
+  specIterationId String
+  type            SpecCardType
+  status          SpecCardStatus  @default(PROPOSED)
+  content         String
+  metadata        Json?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  project         ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  specIteration   SpecIteration   @relation(fields: [specIterationId], references: [id], onDelete: Cascade)
+  outgoingLinks   SpecCardLink[]  @relation("SourceCard")
+  incomingLinks   SpecCardLink[]  @relation("TargetCard")
+
+  @@index([specIterationId, type, status])
+  @@index([projectId, specIterationId])
+  @@index([projectId, lineageId])
+}
+
+model SpecCardLink {
+  id              String          @id @default(cuid())
+  projectId       String
+  specIterationId String
+  sourceCardId    String
+  targetCardId    String
+  type            SpecCardLinkType
+  createdAt       DateTime        @default(now())
+  project         ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceCard      SpecCard        @relation("SourceCard", fields: [sourceCardId], references: [id], onDelete: Cascade)
+  targetCard      SpecCard        @relation("TargetCard", fields: [targetCardId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceCardId, targetCardId, type])
+  @@index([specIterationId, type])
 }
 
 model LlmAuditLog {
@@ -124,6 +202,7 @@ model ConfirmationQuestion {
   id         String    @id @default(cuid())
   projectId  String
   question   String
+  example    String?
   answer     String?
   answeredAt DateTime?
   createdAt  DateTime  @default(now())

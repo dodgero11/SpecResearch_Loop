@@ -1,8 +1,8 @@
-import { SpecIteration, WorkflowRun } from '@prisma/client';
+import { SpecIteration, WorkflowPhase, WorkflowRun } from '@prisma/client';
 
 export type ProjectResponse = { id: string; title: string };
 export type SpecResponse = { id: string; projectId: string; version: number; data: unknown; createdAt: string };
-export type WorkflowResponse = { id: string; projectId: string; specIterationId: string; currentStep: number; completedSteps: unknown; artifacts: unknown; latestSpecVersion: number; status: string; error: string | null };
+export type WorkflowResponse = { id: string; projectId: string; specIterationId: string; currentStep: number; phase: WorkflowPhase; completedSteps: unknown; completedPhases: unknown; artifacts: unknown; latestSpecVersion: number; status: string; error: string | null };
 
 export function toProjectResponse(project: ProjectResponse): ProjectResponse {
   return project;
@@ -24,7 +24,9 @@ export function toWorkflowResponse(run: WorkflowRun): WorkflowResponse {
     projectId: run.projectId,
     specIterationId: run.specIterationId,
     currentStep: run.currentStep,
+    phase: run.currentPhase,
     completedSteps: run.completedSteps,
+    completedPhases: run.completedPhases,
     artifacts: run.artifacts,
     latestSpecVersion: run.latestSpecVersion,
     status: run.status,

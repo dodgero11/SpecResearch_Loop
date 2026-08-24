@@ -13,7 +13,7 @@ export class ConfirmationController {
 
   @Post()
   ask(@Param('projectId') projectId: string, @Body() body: CreateQuestionDto) {
-    return this.confirmations.ask(projectId, body.question);
+    return this.confirmations.ask(projectId, body.question, body.example);
   }
 
   @Put('/:questionId')

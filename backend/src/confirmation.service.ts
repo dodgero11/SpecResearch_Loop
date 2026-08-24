@@ -5,9 +5,9 @@ import { PrismaService } from './prisma.service';
 export class ConfirmationService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async ask(projectId: string, question: string) {
+  async ask(projectId: string, question: string, example?: string) {
     await this.assertProject(projectId);
-    return this.prisma.confirmationQuestion.create({ data: { projectId, question } });
+    return this.prisma.confirmationQuestion.create({ data: { projectId, question, example } });
   }
 
   async answer(id: string, answer: string) {

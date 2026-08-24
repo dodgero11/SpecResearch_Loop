@@ -28,11 +28,11 @@ describe('JudgeService', () => {
       specVersionUsed: 4,
       status: 'COMPLETED',
       judges: expect.arrayContaining([
-        expect.objectContaining({ type: 'problem', status: 'COMPLETED' }),
         expect.objectContaining({ type: 'gap', status: 'COMPLETED' }),
         expect.objectContaining({ type: 'contribution', status: 'COMPLETED' }),
-        expect.objectContaining({ type: 'claim', status: 'COMPLETED' }),
         expect.objectContaining({ type: 'experiment', status: 'COMPLETED' }),
+        expect.objectContaining({ type: 'evidence', status: 'COMPLETED' }),
+        expect.objectContaining({ type: 'conference-readiness', status: 'COMPLETED' }),
       ]),
     });
     expect(llm.complete).toHaveBeenCalledTimes(5);

@@ -14,6 +14,9 @@
 - Real external provider adapters remain an AI integration task behind the typed ports documented in `../general/ai-api.md`.
 - The initial migration and additive migration `20260821120814_add_idempotency_and_artifacts` are applied.
 - Flutter integration is deferred because the frontend project is not available.
+- Frontend integration phase 1 is implemented: named product phases, immutable specification cards, card graph links, and frontend-facing card endpoints are available.
+- TASK-012 is complete: summary/history reads, versioned card/link removal, stable card lineage, and sequential phase advancement are implemented and covered by HTTP tests.
+- TASK-013 is complete: dependency-graph invalidation and selective recomputation allow users to edit any past workflow step and invalidate/recompute its dependent nodes instead of rerunning from scratch. The judge panel is aligned to the original five (`gap`, `contribution`, `experiment`, `evidence`, `conference-readiness`); the `problem`/`claim` judges and the separate `claim-verifier` task were removed.
 - Remaining backend-only work is production hardening: internal route protection, runtime configuration, logging/observability, workflow concurrency checks, API contract polish, structured error handling, and deployment readiness.
 
 ## Definition of done

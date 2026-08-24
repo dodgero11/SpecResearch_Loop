@@ -25,3 +25,8 @@ export class UpdateNodeDto {
   @IsNotEmpty()
   idempotencyKey?: string;
 }
+
+export class RecomputeDto {
+  @IsOptional()
+  nodes?: string[];
+}

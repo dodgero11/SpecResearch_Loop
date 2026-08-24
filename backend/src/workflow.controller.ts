@@ -1,7 +1,7 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
 import { WorkflowService } from './workflow.service';
 import { toWorkflowResponse } from './api-response';
-import { StartWorkflowDto } from './dto/workflow.dto';
+import { AdvancePhaseDto, StartWorkflowDto } from './dto/workflow.dto';
 
 @Controller('workflows')
 export class WorkflowController {
@@ -15,6 +15,11 @@ export class WorkflowController {
   @Get(':runId')
   status(@Param('runId') runId: string) {
     return this.workflows.status(runId).then(toWorkflowResponse);
+  }
+
+  @Put(':runId/phase')
+  advancePhase(@Param('runId') runId: string, @Body() body: AdvancePhaseDto) {
+    return this.workflows.advancePhase(runId, body.phase).then(toWorkflowResponse);
   }
 
   @Post(':runId/resume')

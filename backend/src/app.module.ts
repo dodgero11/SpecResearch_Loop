@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ContextBuilderService } from './context-builder.service';
+import { DependencyGraphService } from './dependency-graph.service';
 import { JudgeService, LLM_PORT } from './judge.service';
 import { ProjectService } from './project.service';
 import { PrismaService } from './prisma.service';
+import { RecomputeService } from './recompute.service';
 import { LlmPort } from './integrations/llm.port';
 import { WorkflowService } from './workflow.service';
 import { VerificationService, SEARCH_PORT, RERANK_PORT, NLI_PORT, SearchPort, RerankPort, NliPort } from './verification.service';
@@ -15,6 +17,8 @@ import { DecisionController } from './decision.controller';
 import { ConfirmationController } from './confirmation.controller';
 import { JudgeController } from './judge.controller';
 import { VerificationController } from './verification.controller';
+import { SpecCardController } from './spec-card.controller';
+import { SpecCardService } from './spec-card.service';
 import { LocalLlmAdapter, LocalNliAdapter, LocalRerankAdapter, LocalSearchAdapter } from './integrations/local.adapters';
 
 const localLlmAdapter: LlmPort = new LocalLlmAdapter();
@@ -23,21 +27,24 @@ const localRerankAdapter: RerankPort = new LocalRerankAdapter();
 const localNliAdapter: NliPort = new LocalNliAdapter();
 
 @Module({
-  controllers: [ProjectController, WorkflowController, HealthController, DecisionController, ConfirmationController, JudgeController, VerificationController],
+  controllers: [ProjectController, WorkflowController, HealthController, DecisionController, ConfirmationController, JudgeController, VerificationController, SpecCardController],
   providers: [
     PrismaService,
     ProjectService,
+    DependencyGraphService,
     ContextBuilderService,
     WorkflowService,
     JudgeService,
     VerificationService,
     DecisionService,
     ConfirmationService,
+    SpecCardService,
+    RecomputeService,
     { provide: LLM_PORT, useValue: localLlmAdapter },
     { provide: SEARCH_PORT, useValue: localSearchAdapter },
     { provide: RERANK_PORT, useValue: localRerankAdapter },
     { provide: NLI_PORT, useValue: localNliAdapter },
   ],
-  exports: [ProjectService, ContextBuilderService, WorkflowService, JudgeService, VerificationService, DecisionService, ConfirmationService],
+  exports: [ProjectService, ContextBuilderService, WorkflowService, JudgeService, VerificationService, DecisionService, ConfirmationService, SpecCardService, RecomputeService],
 })
 export class AppModule {}

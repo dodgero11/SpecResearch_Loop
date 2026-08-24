@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { WorkflowPhase } from '@prisma/client';
+import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
 
 export class StartWorkflowDto {
   @IsString()
@@ -8,4 +9,9 @@ export class StartWorkflowDto {
   @IsString()
   @IsNotEmpty()
   specIterationId!: string;
+}
+
+export class AdvancePhaseDto {
+  @IsEnum(WorkflowPhase)
+  phase!: WorkflowPhase;
 }
