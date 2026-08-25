@@ -58,3 +58,12 @@ info.md
 rules.md
 
 # Backend specific
+
+# Python virtual environments & caches
+ai_service/venv/
+ai_service/.venv/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
