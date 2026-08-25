@@ -25,4 +25,19 @@ export class ContextBuilderService {
     }, {});
       return { specVersion: spec.version, inputContext: inputContext as Prisma.InputJsonObject };
   }
+
+  /**
+   * Merged context for a single panel execution: the union of every judge's
+   * allowlisted fields, so one remote panel call receives the full spec.
+   */
+  async buildPanel(projectId: string): Promise<BuiltContext> {
+    const spec = await this.projects.latestSpec(projectId);
+    const data = spec.data as SpecData;
+    const panelFields = ['problem', 'gap', 'contribution', 'claims', 'evidence', 'experiment', 'baselines', 'relatedWork'];
+    const inputContext = panelFields.reduce<Record<string, Prisma.InputJsonValue>>((context, field) => {
+      if (data[field] !== undefined) context[field] = data[field] as Prisma.InputJsonValue;
+      return context;
+    }, {});
+    return { specVersion: spec.version, inputContext: inputContext as Prisma.InputJsonObject };
+  }
 }

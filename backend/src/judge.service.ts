@@ -1,7 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ContextBuilderService } from './context-builder.service';
-import { LlmPort } from './integrations/llm.port';
+import { sliceJudge } from './integrations/ai-payload-mapper';
+import { LlmPort, LlmResponse } from './integrations/llm.port';
 import { PrismaService } from './prisma.service';
 
 export const LLM_PORT = Symbol('LLM_PORT');
@@ -50,6 +51,10 @@ export class JudgeService {
   }
 
   async runPanel(projectId: string, workflowRunId?: string): Promise<JudgePanelResult> {
+    const completePanel = this.llm.completePanel;
+    if (typeof completePanel === 'function') {
+      return this.runPanelBatched(projectId, workflowRunId, completePanel);
+    }
     const results = await Promise.all(JUDGE_TYPES.map((type) => this.runJudge(projectId, type, workflowRunId)));
     const versions = new Set(results.map((result) => result.specVersionUsed));
     const failed = results.some((result) => result.status === 'FAILED');
@@ -59,6 +64,47 @@ export class JudgeService {
       status: failed || versions.size > 1 ? 'PARTIAL_FAILURE' : 'COMPLETED',
       judges: results,
     };
+  }
+
+  /**
+   * Single remote panel call (port supports batching) instead of five per-judge
+   * calls. The AI service only exposes the judges as one panel endpoint, so this
+   * avoids running the whole panel five times.
+   */
+  private async runPanelBatched(
+    projectId: string,
+    workflowRunId: string | undefined,
+    completePanel: (task: string, inputContext: Record<string, unknown>) => Promise<LlmResponse>,
+  ): Promise<JudgePanelResult> {
+    const context = await this.contextBuilder.buildPanel(projectId);
+    try {
+      const response = await completePanel('judges-panel', context.inputContext as Record<string, unknown>);
+      await this.audit(projectId, workflowRunId, 'judges-panel', context.specVersion, context.inputContext, response.inputTokens, response.outputTokens);
+      const judges = JUDGE_TYPES.map((type) => this.slicePanelJudge(response.output, type, context.specVersion));
+      const failed = judges.some((judge) => judge.status === 'FAILED');
+      return {
+        projectId,
+        specVersionUsed: context.specVersion,
+        status: failed ? 'PARTIAL_FAILURE' : 'COMPLETED',
+        judges,
+      };
+    } catch (error) {
+      const message = this.errorMessage(error);
+      return {
+        projectId,
+        specVersionUsed: context.specVersion,
+        status: 'PARTIAL_FAILURE',
+        judges: JUDGE_TYPES.map((type) => ({ type, status: 'FAILED' as const, specVersionUsed: context.specVersion, error: message })),
+      };
+    }
+  }
+
+  private slicePanelJudge(output: Record<string, unknown>, type: JudgeType, specVersion: number): JudgeResult {
+    try {
+      return { type, status: 'COMPLETED', specVersionUsed: specVersion, output: sliceJudge(output, type) };
+    } catch {
+      return { type, status: 'FAILED', specVersionUsed: specVersion, error: `AI service panel response did not include a "${type}" judge result` };
+    }
   }
 
   private async audit(projectId: string, workflowRunId: string | undefined, task: string, specVersionUsed: number, inputContext: unknown, inputTokens?: number, outputTokens?: number): Promise<void> {

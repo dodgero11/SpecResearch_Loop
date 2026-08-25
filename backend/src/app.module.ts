@@ -5,7 +5,6 @@ import { JudgeService, LLM_PORT } from './judge.service';
 import { ProjectService } from './project.service';
 import { PrismaService } from './prisma.service';
 import { RecomputeService } from './recompute.service';
-import { LlmPort } from './integrations/llm.port';
 import { WorkflowService } from './workflow.service';
 import { VerificationService, SEARCH_PORT, RERANK_PORT, NLI_PORT, SearchPort, RerankPort, NliPort } from './verification.service';
 import { DecisionService } from './decision.service';
@@ -19,9 +18,9 @@ import { JudgeController } from './judge.controller';
 import { VerificationController } from './verification.controller';
 import { SpecCardController } from './spec-card.controller';
 import { SpecCardService } from './spec-card.service';
-import { LocalLlmAdapter, LocalNliAdapter, LocalRerankAdapter, LocalSearchAdapter } from './integrations/local.adapters';
+import { createLlmAdapter } from './integrations/http-llm.adapter';
+import { LocalNliAdapter, LocalRerankAdapter, LocalSearchAdapter } from './integrations/local.adapters';
 
-const localLlmAdapter: LlmPort = new LocalLlmAdapter();
 const localSearchAdapter: SearchPort = new LocalSearchAdapter();
 const localRerankAdapter: RerankPort = new LocalRerankAdapter();
 const localNliAdapter: NliPort = new LocalNliAdapter();
@@ -40,7 +39,7 @@ const localNliAdapter: NliPort = new LocalNliAdapter();
     ConfirmationService,
     SpecCardService,
     RecomputeService,
-    { provide: LLM_PORT, useValue: localLlmAdapter },
+    { provide: LLM_PORT, useFactory: () => createLlmAdapter(process.env) },
     { provide: SEARCH_PORT, useValue: localSearchAdapter },
     { provide: RERANK_PORT, useValue: localRerankAdapter },
     { provide: NLI_PORT, useValue: localNliAdapter },
