@@ -120,4 +120,73 @@ describe('ProjectService', () => {
     const createdNodes = transaction.specArtifact.create.mock.calls.map((call: unknown[]) => (call[0] as { data: { node: string } }).data.node);
     expect(createdNodes).toEqual(expect.arrayContaining(['gap', 'contribution', 'claim', 'experiment', 'judge']));
   });
+
+  it('maps the related_work node to the relatedWork data key', async () => {
+    const { service, transaction } = makeService({
+      id: 'project-1',
+      latestSpec: { id: 'spec-1', version: 1, data: {} },
+    });
+
+    await service.updateNode('project-1', 'related_work', ['new']);
+
+    expect(transaction.specIteration.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ data: expect.objectContaining({ relatedWork: ['new'] }) }),
+    }));
+    expect(transaction.specIteration.create).not.toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ data: expect.objectContaining({ related_work: ['new'] }) }),
+    }));
+  });
+
+  it('appends a related work item and invalidates dependents', async () => {
+    const { service, transaction } = makeService({
+      id: 'project-1',
+      latestSpec: { id: 'spec-1', version: 1, data: { relatedWork: [{ paper_title: 'Existing', source_url: 'https://a.com' }] } },
+    });
+
+    const result = await service.addRelatedWork('project-1', { title: 'New Paper', sourceUrl: 'https://b.com' }, 'rw-1');
+
+    expect(result.version).toBe(2);
+    expect(transaction.specIteration.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        data: expect.objectContaining({
+          relatedWork: [
+            { paper_title: 'Existing', source_url: 'https://a.com' },
+            { paper_title: 'New Paper', authors: '', year: 0, what_they_did: '', feedback: '', missing_points: '', source_url: 'https://b.com' },
+          ],
+        }),
+      }),
+    }));
+    expect(transaction.specArtifact.create).toHaveBeenCalledTimes(5);
+    expect(transaction.idempotencyRecord.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ key: 'rw-1' }) }));
+  });
+
+  it('skips a duplicate related work without creating a new version', async () => {
+    const { service, transaction } = makeService({
+      id: 'project-1',
+      latestSpec: { id: 'spec-1', version: 1, data: { relatedWork: [{ paper_title: 'Existing', source_url: 'https://a.com' }] } },
+    });
+
+    const result = await service.addRelatedWork('project-1', { title: 'Existing', sourceUrl: 'https://a.com' });
+
+    expect(result.version).toBe(1);
+    expect(transaction.specIteration.create).not.toHaveBeenCalled();
+    expect(transaction.specArtifact.create).not.toHaveBeenCalled();
+  });
+
+  it('appends when relatedWork is absent', async () => {
+    const { service, transaction } = makeService({
+      id: 'project-1',
+      latestSpec: { id: 'spec-1', version: 1, data: {} },
+    });
+
+    await service.addRelatedWork('project-1', { title: 'First Paper' });
+
+    expect(transaction.specIteration.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        data: expect.objectContaining({
+          relatedWork: [{ paper_title: 'First Paper', authors: '', year: 0, what_they_did: '', feedback: '', missing_points: '', source_url: '' }],
+        }),
+      }),
+    }));
+  });
 });

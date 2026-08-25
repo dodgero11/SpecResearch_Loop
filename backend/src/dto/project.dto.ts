@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsObject, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsNotEmpty, IsObject, IsOptional, IsString, IsUrl, MinLength } from 'class-validator';
 
 export class CreateProjectDto {
   @IsString()
@@ -29,4 +29,19 @@ export class UpdateNodeDto {
 export class RecomputeDto {
   @IsOptional()
   nodes?: string[];
+}
+
+export class CreateRelatedWorkDto {
+  @IsString()
+  @IsNotEmpty()
+  title!: string;
+
+  @IsOptional()
+  @IsUrl()
+  sourceUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  idempotencyKey?: string;
 }

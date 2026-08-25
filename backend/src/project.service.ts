@@ -92,7 +92,8 @@ export class ProjectService {
       if (!project?.latestSpec) throw new NotFoundException(`No latest spec exists for project ${projectId}`);
       const current = project.latestSpec;
       const currentData = current.data as SpecData;
-      const nextData = { ...currentData, [node]: value };
+      const dataKey = this.dataKeyForNode(node);
+      const nextData = { ...currentData, [dataKey]: value };
       const spec = await transaction.specIteration.create({
         data: { projectId, version: current.version + 1, data: nextData as Prisma.InputJsonValue },
       });
@@ -108,6 +109,67 @@ export class ProjectService {
       }
       return spec;
     });
+  }
+
+  async addRelatedWork(projectId: string, input: { title: string; sourceUrl?: string }, idempotencyKey?: string): Promise<SpecIteration> {
+    return this.prisma.$transaction(async (transaction) => {
+      if (idempotencyKey) {
+        const previous = await transaction.idempotencyRecord.findUnique({ where: { projectId_key: { projectId, key: idempotencyKey } } });
+        if (previous) return previous.result as unknown as SpecIteration;
+      }
+      const project = await transaction.researchProject.findUnique({ where: { id: projectId }, include: { latestSpec: true } });
+      if (!project?.latestSpec) throw new NotFoundException(`No latest spec exists for project ${projectId}`);
+      const current = project.latestSpec;
+      const currentData = current.data as SpecData;
+      const existing = this.asRelatedWorkArray(currentData.relatedWork);
+      const item = this.toRelatedWorkItem(input);
+      const isDuplicate = existing.some((entry) => this.sameRelatedWork(entry, item));
+      if (isDuplicate) {
+        return current;
+      }
+      const nextData = { ...currentData, relatedWork: [...existing, item] };
+      const spec = await transaction.specIteration.create({
+        data: { projectId, version: current.version + 1, data: nextData as Prisma.InputJsonValue },
+      });
+      await transaction.researchProject.update({ where: { id: projectId }, data: { latestSpecId: spec.id } });
+      const affectedNodes = this.dependencyGraph.getAffectedNodes('related_work');
+      for (const affectedNode of affectedNodes) {
+        await transaction.specArtifact.create({ data: { projectId, specIterationId: spec.id, node: affectedNode, status: 'STALE', data: {} } });
+      }
+      if (idempotencyKey) {
+        await transaction.idempotencyRecord.create({ data: { projectId, key: idempotencyKey, operation: 'add-related-work', result: spec as unknown as Prisma.InputJsonValue } });
+      }
+      return spec;
+    });
+  }
+
+  /** Maps a dependency-graph node name to the spec `data` key it is stored under. */
+  private dataKeyForNode(node: string): string {
+    return node === 'related_work' ? 'relatedWork' : node;
+  }
+
+  private asRelatedWorkArray(value: unknown): Record<string, unknown>[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null);
+  }
+
+  private toRelatedWorkItem(input: { title: string; sourceUrl?: string }): Record<string, unknown> {
+    return {
+      paper_title: input.title,
+      authors: '',
+      year: 0,
+      what_they_did: '',
+      feedback: '',
+      missing_points: '',
+      source_url: input.sourceUrl ?? '',
+    };
+  }
+
+  private sameRelatedWork(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
+    const leftUrl = String(left.source_url ?? '').trim();
+    const rightUrl = String(right.source_url ?? '').trim();
+    if (leftUrl && rightUrl) return leftUrl === rightUrl;
+    return String(left.paper_title ?? '').trim().toLowerCase() === String(right.paper_title ?? '').trim().toLowerCase();
   }
 
   async getInvalidations(projectId: string) {

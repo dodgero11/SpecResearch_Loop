@@ -164,4 +164,21 @@ ok(res, 200, 'GET /projects/:id/specs');
 res = await req('GET', `/projects/${projectId}/invalidations`);
 ok(res, 200, 'GET /projects/:id/invalidations (after recompute)');
 
+// 27. Add related work
+res = await req('POST', `/projects/${projectId}/related-works`, { body: { title: 'Smoke related paper', sourceUrl: 'https://arxiv.org/abs/2401.99999', idempotencyKey: idempotency('rw') } });
+ok(res, 201, 'POST /projects/:id/related-works');
+const rwVersion = res.body.version;
+assert.ok(Array.isArray(res.body.data.relatedWork), 'relatedWork is an array');
+assert.ok(res.body.data.relatedWork.some((r) => r.paper_title === 'Smoke related paper'), 'related work appended');
+
+// 28. Related work invalidates downstream
+res = await req('GET', `/projects/${projectId}/invalidations`);
+ok(res, 200, 'GET /projects/:id/invalidations (after related work)');
+assert.ok(res.body.staleNodes.includes('gap'), 'gap stale after related work add');
+
+// 29. Duplicate related work is a no-op (no version bump)
+res = await req('POST', `/projects/${projectId}/related-works`, { body: { title: 'Smoke related paper', sourceUrl: 'https://arxiv.org/abs/2401.99999' } });
+ok(res, 201, 'POST /projects/:id/related-works (duplicate)');
+assert.equal(res.body.version, rwVersion, 'duplicate does not bump version');
+
 console.log('\nALL API SMOKE TESTS PASSED');

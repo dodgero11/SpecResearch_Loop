@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
 import { ProjectService } from './project.service';
 import { RecomputeService } from './recompute.service';
-import { CreateProjectDto, CreateSpecDto, RecomputeDto, UpdateNodeDto } from './dto/project.dto';
+import { CreateProjectDto, CreateRelatedWorkDto, CreateSpecDto, RecomputeDto, UpdateNodeDto } from './dto/project.dto';
 import { toSpecResponse } from './api-response';
 
 @Controller('projects')
@@ -39,6 +39,11 @@ export class ProjectController {
   @Put(':projectId/spec/nodes/:node')
   updateNode(@Param('projectId') projectId: string, @Param('node') node: string, @Body() body: UpdateNodeDto) {
     return this.projects.updateNode(projectId, node, body.value, body.idempotencyKey).then(toSpecResponse);
+  }
+
+  @Post(':projectId/related-works')
+  addRelatedWork(@Param('projectId') projectId: string, @Body() body: CreateRelatedWorkDto) {
+    return this.projects.addRelatedWork(projectId, { title: body.title, sourceUrl: body.sourceUrl }, body.idempotencyKey).then(toSpecResponse);
   }
 
   @Get(':projectId/invalidations')

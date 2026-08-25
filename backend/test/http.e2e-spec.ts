@@ -120,6 +120,27 @@ describe('HTTP API', () => {
     expect(afterRecompute.body.specVersion).toBe(8);
     expect(afterRecompute.body.staleNodes).toEqual([]);
 
+    const relatedWork = await request(app.getHttpServer())
+      .post(`/projects/${projectId}/related-works`)
+      .send({ title: 'A user-added paper', sourceUrl: 'https://arxiv.org/abs/2401.99999', idempotencyKey: 'related-work-1' })
+      .expect(201);
+    expect(relatedWork.body.version).toBe(9);
+    expect(relatedWork.body.data.relatedWork).toEqual(expect.arrayContaining([
+      expect.objectContaining({ paper_title: 'A user-added paper', source_url: 'https://arxiv.org/abs/2401.99999' }),
+    ]));
+
+    const relatedInvalidations = await request(app.getHttpServer())
+      .get(`/projects/${projectId}/invalidations`)
+      .expect(200);
+    expect(relatedInvalidations.body.specVersion).toBe(9);
+    expect(relatedInvalidations.body.staleNodes).toEqual(expect.arrayContaining(['gap', 'contribution', 'claim', 'experiment', 'judge']));
+
+    const duplicateRelatedWork = await request(app.getHttpServer())
+      .post(`/projects/${projectId}/related-works`)
+      .send({ title: 'A user-added paper', sourceUrl: 'https://arxiv.org/abs/2401.99999' })
+      .expect(201);
+    expect(duplicateRelatedWork.body.version).toBe(9);
+
     const judge = await request(app.getHttpServer())
       .post(`/internal/ai/projects/${projectId}/judges/gap`)
       .set('x-api-key', 'local-dev-key')

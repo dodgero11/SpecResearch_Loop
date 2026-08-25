@@ -87,6 +87,18 @@ Returns immutable specification versions in ascending order. Historical versions
 
 Updates create immutable versions. Editing any dependency node marks all downstream workflow nodes stale for the new version. The dependency graph is `related_work → gap → contribution → claim → experiment → judge` (with `problem` feeding `gap` and the judge depending on every node). Editing `problem` invalidates `gap`, `contribution`, `claim`, `experiment`, and `judge`; editing `related_work` invalidates `gap`, `contribution`, `claim`, `experiment`, and `judge`; editing `gap` invalidates `contribution`, `claim`, `experiment`, and `judge`; editing `contribution` invalidates `claim`, `experiment`, and `judge`; editing `claim` invalidates `experiment` and `judge`; editing `experiment` invalidates `judge`; editing `judge` invalidates nothing.
 
+The `related_work` node is stored under the spec `data` key `relatedWork` (camelCase), which is what the judges and the AI service read.
+
+### Add a related work
+
+`POST /projects/:projectId/related-works`
+
+```json
+{ "title": "A user-added paper", "sourceUrl": "https://arxiv.org/abs/2401.99999", "idempotencyKey": "related-work-001" }
+```
+
+Appends one related-work entry to the spec's `relatedWork` array, creates a new immutable version, and invalidates `gap`, `contribution`, `claim`, `experiment`, and `judge`. `title` is required; `sourceUrl` is optional. The backend stores the entry as a `RelatedWorkItem` object (`paper_title`, `authors`, `year`, `what_they_did`, `feedback`, `missing_points`, `source_url`), stubbing the optional fields empty. If an entry with the same `sourceUrl` (or same `title` when no URL) already exists, the request is a no-op: no new version is created and nothing is invalidated.
+
 ### Read node invalidation state
 
 `GET /projects/:projectId/invalidations`
