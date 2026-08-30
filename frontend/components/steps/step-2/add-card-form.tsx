@@ -4,8 +4,6 @@ import { useState } from 'react'
 import { Check, X } from 'lucide-react'
 import { SUGGESTED_CARD_TYPES, type DecompositionCard } from './data'
 
-const OTHER_VALUE = '__other__'
-
 type AddCardFormProps = {
   onSubmit: (card: Pick<DecompositionCard, 'type' | 'content'>) => void
   onCancel: () => void
@@ -13,18 +11,13 @@ type AddCardFormProps = {
 
 export function AddCardForm({ onSubmit, onCancel }: AddCardFormProps) {
   const [selectedType, setSelectedType] = useState<string>(SUGGESTED_CARD_TYPES[0])
-  const [customType, setCustomType] = useState('')
   const [content, setContent] = useState('')
 
-  const isOther = selectedType === OTHER_VALUE
-
   function handleSubmit() {
-    const finalType = (isOther ? customType : selectedType).trim()
     const trimmedContent = content.trim()
-    if (!finalType || !trimmedContent) return
-    onSubmit({ type: finalType, content: trimmedContent })
+    if (!selectedType || !trimmedContent) return
+    onSubmit({ type: selectedType, content: trimmedContent })
     setSelectedType(SUGGESTED_CARD_TYPES[0])
-    setCustomType('')
     setContent('')
   }
 
@@ -38,21 +31,8 @@ export function AddCardForm({ onSubmit, onCancel }: AddCardFormProps) {
               {type}
             </option>
           ))}
-          <option value={OTHER_VALUE}>Other (tự nhập loại thẻ)</option>
         </select>
       </div>
-
-      {isOther && (
-        <div className="add-card-field">
-          <label htmlFor="new-card-custom-type">Tên loại thẻ tự đặt</label>
-          <input
-            id="new-card-custom-type"
-            placeholder="Vd: Ethical constraint, Threat model..."
-            value={customType}
-            onChange={(e) => setCustomType(e.target.value)}
-          />
-        </div>
-      )}
 
       <div className="add-card-field">
         <label htmlFor="new-card-content">Nội dung</label>

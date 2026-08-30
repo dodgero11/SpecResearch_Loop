@@ -117,13 +117,14 @@ export const EXPERIMENT_ROWS: ExperimentRow[] = [
 ]
 
 export function buildExperimentRowForContribution(contribution: ContributionItem, existingCount: number): ExperimentRow {
+  const { baseline, metric } = contribution.claimEvidence
   return {
     code: `TN${existingCount + 1}`,
     title: `Kiểm chứng: ${contribution.label}`,
     bullets: [
-      `So sánh có và không có "${contribution.label}" để đo tác động.`,
+      `So sánh với baseline "${baseline}" để đo tác động.`,
       'Dùng cùng model, dataset và token budget với các thí nghiệm khác.',
-      'Đo theo đúng metric đã khai báo trong Claim–Evidence Card tương ứng.',
+      `Đo theo metric: ${metric}.`,
     ],
     relatedContributionIds: [contribution.id],
   }

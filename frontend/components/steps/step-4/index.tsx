@@ -49,16 +49,23 @@ export default function StepFour() {
     }
     setContributions((prev) => [...prev, created])
     setSelectedIds((prev) => [...prev, created.id])
-
-    setGeneratingForId(created.id)
-    setTimeout(() => {
-      setExperimentRows((prev) => [...prev, buildExperimentRowForContribution(created, prev.length)])
-      setGeneratingForId(null)
-    }, 900)
   }
 
   function editClaimEvidence(id: string, patch: ClaimEvidence) {
     setContributions((prev) => prev.map((item) => (item.id === id ? { ...item, claimEvidence: patch } : item)))
+
+    const isFilled = Object.values(patch).every((value) => value.trim() !== '')
+    const alreadyHasExperiment = experimentRows.some((row) => row.relatedContributionIds.includes(id))
+    if (!isFilled || alreadyHasExperiment) return
+
+    const target = contributions.find((item) => item.id === id)
+    if (!target) return
+
+    setGeneratingForId(id)
+    setTimeout(() => {
+      setExperimentRows((prev) => [...prev, buildExperimentRowForContribution({ ...target, claimEvidence: patch }, prev.length)])
+      setGeneratingForId(null)
+    }, 900)
   }
 
   const selectedContributions = contributions.filter((item) => selectedIds.includes(item.id))
