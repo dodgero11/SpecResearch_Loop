@@ -30,11 +30,6 @@ export function UnderstandingPanel({ unlocked, confirmed, onConfirmedChange }: U
     }, 900)
   }
 
-  function startOwnUnderstanding() {
-    setText('')
-    setEditing(true)
-  }
-
   return (
     <section className={`panel understanding-panel ${unlocked ? '' : 'is-locked'}`}>
       <h2 className="panel-title green">
@@ -97,10 +92,6 @@ export function UnderstandingPanel({ unlocked, confirmed, onConfirmedChange }: U
           <button type="button" className="edit-action" disabled={loadingExample} onClick={requestAnotherExample}>
             <RefreshCw size={16} className={loadingExample ? 'spin-icon' : ''} />
             {loadingExample ? 'Đang tạo...' : 'Yêu cầu ví dụ khác'}
-          </button>
-          <button type="button" className="edit-action" onClick={startOwnUnderstanding}>
-            <Pencil size={16} />
-            Nhập cách hiểu riêng
           </button>
         </div>
       )}
