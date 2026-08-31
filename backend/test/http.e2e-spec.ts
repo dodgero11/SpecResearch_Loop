@@ -182,4 +182,28 @@ describe('HTTP API', () => {
   it('rejects invalid project input', async () => {
     await request(app.getHttpServer()).post('/projects').send({ title: '' }).expect(400);
   });
+
+  it('lists all projects with their latest spec summary', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/projects')
+      .send({ title: `List test ${Date.now()}` })
+      .expect(201);
+
+    const list = await request(app.getHttpServer()).get('/projects').expect(200);
+    expect(Array.isArray(list.body)).toBe(true);
+
+    const entry = list.body.find((p: { id: string }) => p.id === created.body.id);
+    expect(entry).toBeDefined();
+    expect(entry).toEqual(
+      expect.objectContaining({
+        id: created.body.id,
+        title: expect.any(String),
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String),
+        latestSpec: null,
+      }),
+    );
+
+    await prisma.researchProject.delete({ where: { id: created.body.id } });
+  });
 });

@@ -11,6 +11,11 @@ export class ProjectController {
     private readonly recomputeService: RecomputeService,
   ) {}
 
+  @Get()
+  list() {
+    return this.projects.list();
+  }
+
   @Post()
   create(@Body() body: CreateProjectDto): Promise<{ id: string; title: string }> {
     return this.projects.create(body.title);

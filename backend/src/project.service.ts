@@ -16,6 +16,22 @@ export class ProjectService {
     return this.prisma.researchProject.create({ data: { title }, select: { id: true, title: true } });
   }
 
+  async list() {
+    const projects = await this.prisma.researchProject.findMany({
+      orderBy: { updatedAt: 'desc' },
+      include: { latestSpec: { select: { id: true, version: true, createdAt: true } } },
+    });
+    return projects.map((p) => ({
+      id: p.id,
+      title: p.title,
+      createdAt: p.createdAt.toISOString(),
+      updatedAt: p.updatedAt.toISOString(),
+      latestSpec: p.latestSpec
+        ? { id: p.latestSpec.id, version: p.latestSpec.version, createdAt: p.latestSpec.createdAt.toISOString() }
+        : null,
+    }));
+  }
+
   async latestSpec(projectId: string): Promise<SpecIteration> {
     const project = await this.prisma.researchProject.findUnique({
       where: { id: projectId },

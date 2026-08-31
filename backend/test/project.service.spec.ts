@@ -14,7 +14,7 @@ describe('ProjectService', () => {
       specCard: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({}) },
       specCardLink: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({}) },
     };
-    return { transaction, prisma: { $transaction: jest.fn((callback: (tx: typeof transaction) => unknown) => callback(transaction)) } };
+    return { transaction, prisma: { $transaction: jest.fn((callback: (tx: typeof transaction) => unknown) => callback(transaction)), researchProject: { findMany: jest.fn().mockResolvedValue([]) } } };
   }
 
   function makeService(project: unknown) {
@@ -190,5 +190,47 @@ describe('ProjectService', () => {
         }),
       }),
     }));
+  });
+
+  it('lists projects with their latest spec summary', async () => {
+    const { service, prisma } = makeService({});
+    prisma.researchProject.findMany.mockResolvedValue([
+      {
+        id: 'project-1',
+        title: 'Alpha',
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-02T00:00:00Z'),
+        latestSpec: { id: 'spec-3', version: 3, createdAt: new Date('2026-01-02T00:00:00Z') },
+      },
+      {
+        id: 'project-2',
+        title: 'Beta',
+        createdAt: new Date('2026-01-03T00:00:00Z'),
+        updatedAt: new Date('2026-01-03T00:00:00Z'),
+        latestSpec: null,
+      },
+    ]);
+
+    const result = await service.list();
+
+    expect(prisma.researchProject.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { updatedAt: 'desc' } }),
+    );
+    expect(result).toEqual([
+      {
+        id: 'project-1',
+        title: 'Alpha',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-02T00:00:00.000Z',
+        latestSpec: { id: 'spec-3', version: 3, createdAt: '2026-01-02T00:00:00.000Z' },
+      },
+      {
+        id: 'project-2',
+        title: 'Beta',
+        createdAt: '2026-01-03T00:00:00.000Z',
+        updatedAt: '2026-01-03T00:00:00.000Z',
+        latestSpec: null,
+      },
+    ]);
   });
 });
