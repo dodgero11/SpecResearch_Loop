@@ -56,8 +56,10 @@ Thumbs.db
 repomix-output*
 info.md
 rules.md
+TỔNG-HỢP.txt
 
 # Backend specific
+backendmem/
 
 # Python virtual environments & caches
 ai_service/venv/

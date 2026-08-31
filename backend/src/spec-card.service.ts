@@ -7,6 +7,7 @@ type CardInput = {
   type: SpecCardType;
   status?: SpecCardStatus;
   content: string;
+  reason?: string;
   metadata?: Record<string, unknown>;
 };
 
@@ -52,7 +53,31 @@ export class SpecCardService {
     });
   }
 
-  async update(projectId: string, cardId: string, input: Partial<Omit<CardInput, 'type'>>, idempotencyKey?: string) {
+  /** Creates many cards in a single new spec version (used by decompose). */
+  async createMany(projectId: string, inputs: CardInput[], options?: { isSeed?: boolean }) {
+    return this.prisma.$transaction(async (transaction) => {
+      const { spec } = await this.cloneLatest(transaction, projectId);
+      const cards = [];
+      for (const input of inputs) {
+        const card = await transaction.specCard.create({
+          data: {
+            projectId,
+            specIterationId: spec.id,
+            type: input.type,
+            status: input.status,
+            content: input.content,
+            isSeed: options?.isSeed ?? false,
+            reason: input.reason,
+            metadata: input.metadata as Prisma.InputJsonValue | undefined,
+          },
+        });
+        cards.push(card);
+      }
+      return { specIterationId: spec.id, specVersion: spec.version, cards };
+    });
+  }
+
+  async update(projectId: string, cardId: string, input: Partial<CardInput>, idempotencyKey?: string) {
     return this.prisma.$transaction(async (transaction) => {
       const previous = await this.findIdempotent(transaction, projectId, idempotencyKey);
       if (previous) return previous.result;
@@ -64,8 +89,10 @@ export class SpecCardService {
       const card = await transaction.specCard.update({
         where: { id: clonedCardId },
         data: {
+          type: input.type,
           content: input.content,
           status: input.status,
+          reason: input.reason,
           metadata: input.metadata as Prisma.InputJsonValue | undefined,
         },
       });
@@ -82,6 +109,7 @@ export class SpecCardService {
       if (previous) return previous.result;
       const currentCard = await transaction.specCard.findFirst({ where: { id: cardId, projectId } });
       if (!currentCard) throw new NotFoundException(`Spec card ${cardId} was not found`);
+      if (currentCard.isSeed) throw new BadRequestException(`Seed card ${cardId} cannot be deleted`);
       const { spec, cardMap } = await this.cloneLatest(transaction, projectId);
       const clonedCardId = cardMap.get(cardId);
       if (!clonedCardId) throw new NotFoundException(`Spec card ${cardId} is not part of the latest specification`);
@@ -187,6 +215,8 @@ export class SpecCardService {
           lineageId: card.lineageId,
           status: card.status,
           content: card.content,
+          isSeed: card.isSeed,
+          reason: card.reason,
           metadata: card.metadata as Prisma.InputJsonValue | undefined,
         },
       });

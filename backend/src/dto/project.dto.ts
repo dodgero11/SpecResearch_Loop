@@ -42,6 +42,26 @@ export class CreateRelatedWorkDto {
 
   @IsOptional()
   @IsString()
+  year?: string;
+
+  @IsOptional()
+  @IsString()
+  whatItDid?: string;
+
+  @IsOptional()
+  @IsString()
+  feedbackType?: string;
+
+  @IsOptional()
+  @IsString()
+  missingGap?: string;
+
+  @IsOptional()
+  @IsString()
+  sourceType?: string;
+
+  @IsOptional()
+  @IsString()
   @IsNotEmpty()
   idempotencyKey?: string;
 }

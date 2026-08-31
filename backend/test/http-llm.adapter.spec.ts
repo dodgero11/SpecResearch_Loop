@@ -72,9 +72,9 @@ describe('HttpLlmAdapter', () => {
 
     const body = JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body));
     expect(body.related_work).toEqual([
-      { paper_title: 'Paper A', authors: '', year: 0, what_they_did: '', feedback: '', missing_points: '', source_url: '' },
-      { paper_title: 'https://arxiv.org/abs/1', authors: '', year: 0, what_they_did: '', feedback: '', missing_points: '', source_url: 'https://arxiv.org/abs/1' },
-      { paper_title: 'T', authors: 'a', year: 2024, what_they_did: '', feedback: '', missing_points: '', source_url: '' },
+      { paper_title: 'Paper A', authors: '', year: 0, what_they_did: '', feedback: '', missing_points: '', source_url: '', source_type: '' },
+      { paper_title: 'https://arxiv.org/abs/1', authors: '', year: 0, what_they_did: '', feedback: '', missing_points: '', source_url: 'https://arxiv.org/abs/1', source_type: '' },
+      { paper_title: 'T', authors: 'a', year: 2024, what_they_did: '', feedback: '', missing_points: '', source_url: '', source_type: '' },
     ]);
     expect(body.claims).toEqual([
       { claim: 'claim one', baseline: '', metric: '', evidence: '', rejection_condition: '' },

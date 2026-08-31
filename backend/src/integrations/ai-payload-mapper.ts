@@ -68,7 +68,20 @@ function toJudgeResult(value: unknown): JsonRecord {
   return {
     type: asString(record.type),
     verdict: asString(record.verdict, 'REVIEW_REQUIRED'),
-    issues: Array.isArray(record.issues) ? record.issues : [],
+    issues: Array.isArray(record.issues) ? record.issues.map(toIssue) : [],
+  };
+}
+
+/** Normalizes an issue to the frontend IssueSchema shape (title, flaggedBy, choices). */
+function toIssue(value: unknown): JsonRecord {
+  const record = asRecord(value);
+  return {
+    severity: asString(record.severity, 'MINOR'),
+    title: asString(record.title ?? record.description),
+    description: asString(record.description),
+    suggestion: asString(record.suggestion),
+    flaggedBy: asString(record.flagged_by ?? record.flaggedBy, ''),
+    choices: Array.isArray(record.choices) ? record.choices : [],
   };
 }
 
@@ -82,6 +95,7 @@ function toRelatedWorkItem(value: unknown): JsonRecord {
       feedback: '',
       missing_points: '',
       source_url: /^https?:\/\//i.test(value) ? value : '',
+      source_type: '',
     };
   }
   const record = asRecord(value);
@@ -93,6 +107,7 @@ function toRelatedWorkItem(value: unknown): JsonRecord {
     feedback: asString(record.feedback),
     missing_points: asString(record.missing_points ?? record.missingPoints),
     source_url: asString(record.source_url ?? record.sourceUrl),
+    source_type: asString(record.source_type ?? record.sourceType),
   };
 }
 

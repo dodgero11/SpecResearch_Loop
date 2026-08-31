@@ -11,6 +11,8 @@ describe('ProjectService', () => {
       specIteration: { create: jest.fn().mockResolvedValue({ id: 'spec-2', projectId: 'project-1', version: 2, data: { gap: 'new' } }) },
       idempotencyRecord: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
       specArtifact: { create: jest.fn().mockResolvedValue({}) },
+      specCard: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({}) },
+      specCardLink: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({}) },
     };
     return { transaction, prisma: { $transaction: jest.fn((callback: (tx: typeof transaction) => unknown) => callback(transaction)) } };
   }
@@ -151,7 +153,7 @@ describe('ProjectService', () => {
         data: expect.objectContaining({
           relatedWork: [
             { paper_title: 'Existing', source_url: 'https://a.com' },
-            { paper_title: 'New Paper', authors: '', year: 0, what_they_did: '', feedback: '', missing_points: '', source_url: 'https://b.com' },
+            { paper_title: 'New Paper', authors: '', year: 0, what_they_did: '', feedback: '', missing_points: '', source_url: 'https://b.com', source_type: '' },
           ],
         }),
       }),
@@ -184,7 +186,7 @@ describe('ProjectService', () => {
     expect(transaction.specIteration.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         data: expect.objectContaining({
-          relatedWork: [{ paper_title: 'First Paper', authors: '', year: 0, what_they_did: '', feedback: '', missing_points: '', source_url: '' }],
+          relatedWork: [{ paper_title: 'First Paper', authors: '', year: 0, what_they_did: '', feedback: '', missing_points: '', source_url: '', source_type: '' }],
         }),
       }),
     }));

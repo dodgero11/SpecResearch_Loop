@@ -3,6 +3,7 @@ import { ArtifactStatus, Prisma, WorkflowStatus } from '@prisma/client';
 import { DependencyGraphService, WorkflowNode } from './dependency-graph.service';
 import { JudgeService, JudgeResult } from './judge.service';
 import { PrismaService } from './prisma.service';
+import { ProjectService } from './project.service';
 
 export type RecomputeResult = {
   specIterationId: string;
@@ -17,6 +18,7 @@ export class RecomputeService {
     private readonly prisma: PrismaService,
     private readonly judges: JudgeService,
     private readonly dependencyGraph: DependencyGraphService,
+    private readonly projects: ProjectService,
   ) {}
 
   async recompute(projectId: string, requestedNodes?: string[]): Promise<RecomputeResult> {
@@ -73,6 +75,7 @@ export class RecomputeService {
       },
     });
     await this.prisma.researchProject.update({ where: { id: projectId }, data: { latestSpecId: spec.id } });
+    await this.projects.cloneCardsAndLinks(this.prisma, projectId, latest.id, spec.id);
 
     const judgeResults: JudgeResult[] = [];
     const nodeToJudgeResult = new Map<string, JudgeResult>();

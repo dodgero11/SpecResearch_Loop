@@ -1,7 +1,6 @@
 import { DecisionService } from '../src/decision.service';
-import { ConfirmationService } from '../src/confirmation.service';
 
-describe('DecisionService and ConfirmationService', () => {
+describe('DecisionService', () => {
   it('appends decisions without replacing earlier history', async () => {
     const prisma = {
       researchProject: { findUnique: jest.fn().mockResolvedValue({ id: 'project-1' }) },
@@ -16,23 +15,5 @@ describe('DecisionService and ConfirmationService', () => {
     await service.record('project-1', 'OVERRIDE', 'gap-judge', { accepted: false });
 
     expect(prisma.decisionLog.create).toHaveBeenCalledTimes(2);
-  });
-
-  it('persists and answers confirmation questions', async () => {
-    const prisma = {
-      researchProject: { findUnique: jest.fn().mockResolvedValue({ id: 'project-1' }) },
-      confirmationQuestion: {
-        create: jest.fn().mockResolvedValue({ id: 'question-1' }),
-        findUnique: jest.fn().mockResolvedValue({ id: 'question-1' }),
-        update: jest.fn().mockResolvedValue({ id: 'question-1', answer: 'yes' }),
-      },
-    };
-    const service = new ConfirmationService(prisma as never);
-
-    await service.ask('project-1', 'Accept this gap?');
-    await service.answer('question-1', 'yes');
-
-    expect(prisma.confirmationQuestion.create).toHaveBeenCalled();
-    expect(prisma.confirmationQuestion.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ answer: 'yes' }) }));
   });
 });

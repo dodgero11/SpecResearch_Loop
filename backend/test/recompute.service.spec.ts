@@ -30,6 +30,8 @@ describe('RecomputeService', () => {
         workflowRun: { findFirst: jest.fn().mockResolvedValue(overrides.workflowRun ?? null) },
         specIteration: { create: jest.fn().mockResolvedValue(overrides.specIteration ?? { id: 'spec-2', projectId: 'project-1', version: 2 }) },
         specArtifact: { upsert: jest.fn().mockResolvedValue({}) },
+        specCard: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({}) },
+        specCardLink: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({}) },
       },
     };
   }
@@ -57,8 +59,9 @@ describe('RecomputeService', () => {
       }),
     };
     const dependencyGraph = new DependencyGraphService();
-    const service = new RecomputeService(prisma as never, judges as unknown as JudgeService, dependencyGraph);
-    return { service, prisma, judges };
+    const projects = { cloneCardsAndLinks: jest.fn().mockResolvedValue(undefined) };
+    const service = new RecomputeService(prisma as never, judges as unknown as JudgeService, dependencyGraph, projects as never);
+    return { service, prisma, judges, projects };
   }
 
   it('throws NotFoundException when project does not exist', async () => {

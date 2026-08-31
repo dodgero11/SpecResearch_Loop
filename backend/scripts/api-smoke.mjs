@@ -109,11 +109,7 @@ const expected = ['conference-readiness', 'contribution', 'evidence', 'experimen
 assert.deepEqual(types, expected, 'panel judge types match original set');
 console.log('   judges =', JSON.stringify(types));
 
-// 14. Verification (internal)
-res = await req('POST', '/internal/ai/verification/claims', { headers: { 'x-api-key': apiKey }, body: { claim: 'A test claim' } });
-ok(res, 201, 'POST /internal/ai/verification/claims');
-
-// 15. Decision
+// 14. Decision
 res = await req('POST', `/projects/${projectId}/decisions`, { body: { type: 'ACCEPT', target: 'gap-judge', value: { accepted: true } } });
 ok(res, 201, 'POST /projects/:id/decisions');
 
@@ -121,14 +117,20 @@ ok(res, 201, 'POST /projects/:id/decisions');
 res = await req('GET', `/projects/${projectId}/decisions`);
 ok(res, 200, 'GET /projects/:id/decisions');
 
-// 17. Confirmation create
-res = await req('POST', `/projects/${projectId}/confirmations`, { body: { question: 'Accept this gap?' } });
-ok(res, 201, 'POST /projects/:id/confirmations');
-const questionId = res.body.id;
+// 17. Clarify understand
+res = await req('POST', `/projects/${projectId}/clarify/understand`, { body: { idea: 'Optimize prompts' } });
+ok(res, 201, 'POST /projects/:id/clarify/understand');
 
-// 18. Confirmation answer
-res = await req('PUT', `/projects/${projectId}/confirmations/${questionId}`, { body: { answer: 'yes' } });
-ok(res, 200, 'PUT /projects/:id/confirmations/:questionId');
+// 18. Clarify questions
+res = await req('POST', `/projects/${projectId}/clarify/questions`, { body: {} });
+ok(res, 201, 'POST /projects/:id/clarify/questions');
+const questionId = res.body.questions?.[0]?.id;
+
+// 18b. Clarify answers (batch)
+if (questionId) {
+  res = await req('POST', `/projects/${projectId}/clarify/questions/answers`, { body: { answers: [{ questionId, selectedIndex: 0 }] } });
+  ok(res, 201, 'POST /projects/:id/clarify/questions/answers');
+}
 
 // 19. Workflow start
 res = await req('POST', '/workflows', { body: { projectId, specIterationId: specId } });

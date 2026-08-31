@@ -58,12 +58,14 @@ export class JudgeService {
     const results = await Promise.all(JUDGE_TYPES.map((type) => this.runJudge(projectId, type, workflowRunId)));
     const versions = new Set(results.map((result) => result.specVersionUsed));
     const failed = results.some((result) => result.status === 'FAILED');
-    return {
+    const panel: JudgePanelResult = {
       projectId,
       specVersionUsed: results[0]?.specVersionUsed ?? 0,
       status: failed || versions.size > 1 ? 'PARTIAL_FAILURE' : 'COMPLETED',
       judges: results,
     };
+    await this.persistIssues(projectId, panel.specVersionUsed, results);
+    return panel;
   }
 
   /**
@@ -82,12 +84,14 @@ export class JudgeService {
       await this.audit(projectId, workflowRunId, 'judges-panel', context.specVersion, context.inputContext, response.inputTokens, response.outputTokens);
       const judges = JUDGE_TYPES.map((type) => this.slicePanelJudge(response.output, type, context.specVersion));
       const failed = judges.some((judge) => judge.status === 'FAILED');
-      return {
+      const panel: JudgePanelResult = {
         projectId,
         specVersionUsed: context.specVersion,
         status: failed ? 'PARTIAL_FAILURE' : 'COMPLETED',
         judges,
       };
+      await this.persistIssues(projectId, panel.specVersionUsed, judges);
+      return panel;
     } catch (error) {
       const message = this.errorMessage(error);
       return {
@@ -119,6 +123,32 @@ export class JudgeService {
         outputTokens,
       },
     });
+  }
+
+  /** Persists judge issues as stable JudgeIssue rows so the frontend can resolve them by id. */
+  private async persistIssues(projectId: string, specVersion: number, results: JudgeResult[]): Promise<void> {
+    const spec = await this.prisma.specIteration.findFirst({ where: { projectId, version: specVersion } });
+    if (!spec) return;
+    for (const result of results) {
+      if (result.status !== 'COMPLETED' || !result.output) continue;
+      const issues = Array.isArray(result.output.issues) ? result.output.issues : [];
+      for (const issue of issues) {
+        const record = issue as Record<string, unknown>;
+        await this.prisma.judgeIssue.create({
+          data: {
+            projectId,
+            specIterationId: spec.id,
+            judgeType: result.type,
+            severity: String(record.severity ?? 'MINOR'),
+            title: String(record.title ?? record.description ?? ''),
+            description: String(record.description ?? ''),
+            suggestion: String(record.suggestion ?? ''),
+            flaggedBy: String(record.flaggedBy ?? record.flagged_by ?? ''),
+            choices: (Array.isArray(record.choices) ? record.choices : []) as Prisma.InputJsonValue,
+          },
+        });
+      }
+    }
   }
 
   private errorMessage(error: unknown): string {

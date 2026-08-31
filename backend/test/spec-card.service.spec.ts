@@ -84,4 +84,51 @@ describe('SpecCardService', () => {
     const createdNodes = transaction.specArtifact.create.mock.calls.map((call: unknown[]) => (call[0] as { data: { node: string } }).data.node);
     expect(createdNodes).toEqual(['judge']);
   });
+
+  it('createMany creates all cards in one new spec version with isSeed', async () => {
+    const { service, transaction } = makeService();
+
+    const result = await service.createMany(
+      'project-1',
+      [
+        { type: 'PROBLEM', content: 'P' },
+        { type: 'CLAIM', content: 'CL' },
+      ],
+      { isSeed: true },
+    );
+
+    expect(transaction.specIteration.create).toHaveBeenCalledTimes(1);
+    expect(transaction.specCard.create).toHaveBeenCalledTimes(2);
+    expect(transaction.specCard.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isSeed: true, type: 'PROBLEM' }) }),
+    );
+    expect(result.specVersion).toBe(2);
+    expect(result.cards).toHaveLength(2);
+  });
+
+  it('rejects deleting a seed card', async () => {
+    const { service, transaction } = makeService();
+    transaction.specCard.findFirst.mockResolvedValue({
+      id: 'card-1', projectId: 'project-1', specIterationId: 'spec-1', type: 'PROBLEM', content: 'P', isSeed: true,
+    });
+
+    await expect(service.remove('project-1', 'card-1')).rejects.toThrow('Seed card card-1 cannot be deleted');
+    expect(transaction.specCard.delete).not.toHaveBeenCalled();
+  });
+
+  it('update persists the reason field', async () => {
+    const { service, transaction } = makeService();
+    transaction.specCard.findMany.mockResolvedValue([
+      { id: 'card-1', projectId: 'project-1', specIterationId: 'spec-1', type: 'GAP_CANDIDATE', content: 'old', isSeed: false },
+    ]);
+    transaction.specCard.create.mockResolvedValue({
+      id: 'card-2', projectId: 'project-1', specIterationId: 'spec-2', type: 'GAP_CANDIDATE', content: 'old', isSeed: false,
+    });
+
+    await service.update('project-1', 'card-1', { status: 'AMBIGUOUS', reason: 'Chưa rõ nghĩa' });
+
+    expect(transaction.specCard.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'AMBIGUOUS', reason: 'Chưa rõ nghĩa' }) }),
+    );
+  });
 });

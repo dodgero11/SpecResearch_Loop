@@ -154,27 +154,11 @@ describe('HTTP API', () => {
     expect(panel.body.status).toBe('COMPLETED');
     expect(panel.body.judges).toHaveLength(5);
 
-    const verification = await request(app.getHttpServer())
-      .post('/internal/ai/verification/claims')
-      .set('x-api-key', 'local-dev-key')
-      .send({ claim: 'A test claim' })
-      .expect(201);
-    expect(verification.body.outcome).toBe('INSUFFICIENT');
-
     const decision = await request(app.getHttpServer())
       .post(`/projects/${projectId}/decisions`)
       .send({ type: 'ACCEPT', target: 'gap-judge', value: { accepted: true } })
       .expect(201);
     expect(decision.body.type).toBe('ACCEPT');
-
-    const question = await request(app.getHttpServer())
-      .post(`/projects/${projectId}/confirmations`)
-      .send({ question: 'Accept this gap?' })
-      .expect(201);
-    await request(app.getHttpServer())
-      .put(`/projects/${projectId}/confirmations/${question.body.id}`)
-      .send({ answer: 'yes' })
-      .expect(200);
 
     const run = await request(app.getHttpServer())
       .post('/workflows')

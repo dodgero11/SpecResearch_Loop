@@ -43,7 +43,19 @@ export class ProjectController {
 
   @Post(':projectId/related-works')
   addRelatedWork(@Param('projectId') projectId: string, @Body() body: CreateRelatedWorkDto) {
-    return this.projects.addRelatedWork(projectId, { title: body.title, sourceUrl: body.sourceUrl }, body.idempotencyKey).then(toSpecResponse);
+    return this.projects.addRelatedWork(
+      projectId,
+      {
+        title: body.title,
+        sourceUrl: body.sourceUrl,
+        year: body.year,
+        whatItDid: body.whatItDid,
+        feedbackType: body.feedbackType,
+        missingGap: body.missingGap,
+        sourceType: body.sourceType,
+      },
+      body.idempotencyKey,
+    ).then(toSpecResponse);
   }
 
   @Get(':projectId/invalidations')

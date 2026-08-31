@@ -20,7 +20,11 @@ describe('JudgeService', () => {
       build: jest.fn(async (task: string) => ({ specVersion: 4, inputContext: { task } })),
     };
     const llm = { complete: jest.fn(async (task: string) => ({ output: { task }, inputTokens: 10, outputTokens: 2 })) };
-    const prisma = { llmAuditLog: { create: jest.fn().mockResolvedValue({ id: 'audit' }) } };
+    const prisma = {
+      llmAuditLog: { create: jest.fn().mockResolvedValue({ id: 'audit' }) },
+      specIteration: { findFirst: jest.fn().mockResolvedValue({ id: 'spec-1' }) },
+      judgeIssue: { create: jest.fn().mockResolvedValue({ id: 'issue-1' }) },
+    };
     const service = new JudgeService(contextBuilder as never, prisma as never, llm);
 
     await expect(service.runPanel('project-1')).resolves.toMatchObject({
@@ -53,7 +57,11 @@ describe('JudgeService', () => {
       complete: jest.fn(),
       completePanel: jest.fn().mockResolvedValue({ output: { status: 'COMPLETED', judges: panelJudges } }),
     };
-    const prisma = { llmAuditLog: { create: jest.fn().mockResolvedValue({ id: 'audit' }) } };
+    const prisma = {
+      llmAuditLog: { create: jest.fn().mockResolvedValue({ id: 'audit' }) },
+      specIteration: { findFirst: jest.fn().mockResolvedValue({ id: 'spec-1' }) },
+      judgeIssue: { create: jest.fn().mockResolvedValue({ id: 'issue-1' }) },
+    };
     const service = new JudgeService(contextBuilder as never, prisma as never, llm);
 
     const result = await service.runPanel('project-1', 'run-2');
@@ -79,7 +87,11 @@ describe('JudgeService', () => {
       complete: jest.fn(),
       completePanel: jest.fn().mockRejectedValue(new Error('AI service unreachable')),
     };
-    const prisma = { llmAuditLog: { create: jest.fn() } };
+    const prisma = {
+      llmAuditLog: { create: jest.fn() },
+      specIteration: { findFirst: jest.fn().mockResolvedValue({ id: 'spec-1' }) },
+      judgeIssue: { create: jest.fn().mockResolvedValue({ id: 'issue-1' }) },
+    };
     const service = new JudgeService(contextBuilder as never, prisma as never, llm);
 
     const result = await service.runPanel('project-1');
@@ -101,7 +113,11 @@ describe('JudgeService', () => {
         output: { status: 'COMPLETED', judges: [{ type: 'gap', verdict: 'ACCEPT', issues: [] }] },
       }),
     };
-    const prisma = { llmAuditLog: { create: jest.fn() } };
+    const prisma = {
+      llmAuditLog: { create: jest.fn() },
+      specIteration: { findFirst: jest.fn().mockResolvedValue({ id: 'spec-1' }) },
+      judgeIssue: { create: jest.fn().mockResolvedValue({ id: 'issue-1' }) },
+    };
     const service = new JudgeService(contextBuilder as never, prisma as never, llm);
 
     const result = await service.runPanel('project-1');

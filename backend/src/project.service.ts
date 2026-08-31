@@ -75,6 +75,9 @@ export class ProjectService {
         data: { projectId, version, data: data as Prisma.InputJsonValue },
       });
       await transaction.researchProject.update({ where: { id: projectId }, data: { latestSpecId: spec.id } });
+      if (project.latestSpec) {
+        await this.cloneCardsAndLinks(transaction, projectId, project.latestSpec.id, spec.id);
+      }
       if (idempotencyKey) {
         await transaction.idempotencyRecord.create({ data: { projectId, key: idempotencyKey, operation: 'create-spec', result: spec as unknown as Prisma.InputJsonValue } });
       }
@@ -98,6 +101,7 @@ export class ProjectService {
         data: { projectId, version: current.version + 1, data: nextData as Prisma.InputJsonValue },
       });
       await transaction.researchProject.update({ where: { id: projectId }, data: { latestSpecId: spec.id } });
+      await this.cloneCardsAndLinks(transaction, projectId, current.id, spec.id);
       if (this.dependencyGraph.isValidNode(node)) {
         const affectedNodes = this.dependencyGraph.getAffectedNodes(node);
         for (const affectedNode of affectedNodes) {
@@ -111,7 +115,11 @@ export class ProjectService {
     });
   }
 
-  async addRelatedWork(projectId: string, input: { title: string; sourceUrl?: string }, idempotencyKey?: string): Promise<SpecIteration> {
+  async addRelatedWork(
+    projectId: string,
+    input: { title: string; sourceUrl?: string; year?: string; whatItDid?: string; feedbackType?: string; missingGap?: string; sourceType?: string },
+    idempotencyKey?: string,
+  ): Promise<SpecIteration> {
     return this.prisma.$transaction(async (transaction) => {
       if (idempotencyKey) {
         const previous = await transaction.idempotencyRecord.findUnique({ where: { projectId_key: { projectId, key: idempotencyKey } } });
@@ -132,6 +140,7 @@ export class ProjectService {
         data: { projectId, version: current.version + 1, data: nextData as Prisma.InputJsonValue },
       });
       await transaction.researchProject.update({ where: { id: projectId }, data: { latestSpecId: spec.id } });
+      await this.cloneCardsAndLinks(transaction, projectId, current.id, spec.id);
       const affectedNodes = this.dependencyGraph.getAffectedNodes('related_work');
       for (const affectedNode of affectedNodes) {
         await transaction.specArtifact.create({ data: { projectId, specIterationId: spec.id, node: affectedNode, status: 'STALE', data: {} } });
@@ -148,20 +157,55 @@ export class ProjectService {
     return node === 'related_work' ? 'relatedWork' : node;
   }
 
+  /** Copies cards and links from one spec version to another (immutable versioning). */
+  async cloneCardsAndLinks(transaction: Prisma.TransactionClient, projectId: string, fromSpecId: string, toSpecId: string): Promise<void> {
+    const cards = await transaction.specCard.findMany({ where: { projectId, specIterationId: fromSpecId } });
+    const cardMap = new Map<string, string>();
+    for (const card of cards) {
+      const clone = await transaction.specCard.create({
+        data: {
+          projectId,
+          specIterationId: toSpecId,
+          type: card.type,
+          lineageId: card.lineageId,
+          status: card.status,
+          content: card.content,
+          isSeed: card.isSeed,
+          reason: card.reason,
+          metadata: card.metadata as Prisma.InputJsonValue | undefined,
+        },
+      });
+      cardMap.set(card.id, clone.id);
+    }
+    const links = await transaction.specCardLink.findMany({ where: { projectId, specIterationId: fromSpecId } });
+    for (const link of links) {
+      await transaction.specCardLink.create({
+        data: {
+          projectId,
+          specIterationId: toSpecId,
+          sourceCardId: cardMap.get(link.sourceCardId)!,
+          targetCardId: cardMap.get(link.targetCardId)!,
+          type: link.type,
+        },
+      });
+    }
+  }
+
   private asRelatedWorkArray(value: unknown): Record<string, unknown>[] {
     if (!Array.isArray(value)) return [];
     return value.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null);
   }
 
-  private toRelatedWorkItem(input: { title: string; sourceUrl?: string }): Record<string, unknown> {
+  private toRelatedWorkItem(input: { title: string; sourceUrl?: string; year?: string; whatItDid?: string; feedbackType?: string; missingGap?: string; sourceType?: string }): Record<string, unknown> {
     return {
       paper_title: input.title,
       authors: '',
-      year: 0,
-      what_they_did: '',
-      feedback: '',
-      missing_points: '',
+      year: input.year ? Number(input.year) || 0 : 0,
+      what_they_did: input.whatItDid ?? '',
+      feedback: input.feedbackType ?? '',
+      missing_points: input.missingGap ?? '',
       source_url: input.sourceUrl ?? '',
+      source_type: input.sourceType ?? '',
     };
   }
 

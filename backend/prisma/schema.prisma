@@ -83,6 +83,8 @@ model ResearchProject {
   artifacts    SpecArtifact[]
   cards        SpecCard[]
   cardLinks    SpecCardLink[]
+  clarification Clarification?
+  judgeIssues  JudgeIssue[]
 }
 
 model SpecIteration {
@@ -96,6 +98,7 @@ model SpecIteration {
   runs      WorkflowRun[]
   artifacts SpecArtifact[]
   cards     SpecCard[]
+  judgeIssues JudgeIssue[]
 
   @@unique([projectId, version])
   @@index([projectId, version])
@@ -143,6 +146,8 @@ model SpecCard {
   type            SpecCardType
   status          SpecCardStatus  @default(PROPOSED)
   content         String
+  isSeed          Boolean         @default(false)
+  reason          String?
   metadata        Json?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -199,13 +204,17 @@ model DecisionLog {
 }
 
 model ConfirmationQuestion {
-  id         String    @id @default(cuid())
-  projectId  String
-  question   String
-  example    String?
-  answer     String?
-  answeredAt DateTime?
-  createdAt  DateTime  @default(now())
+  id            String    @id @default(cuid())
+  projectId     String
+  question      String
+  title         String?
+  example       String?
+  options       String[]
+  selectedIndex Int?
+  customAnswer  String?
+  answer        String?
+  answeredAt    DateTime?
+  createdAt     DateTime  @default(now())
 
   @@index([projectId, answeredAt])
 }
@@ -236,4 +245,39 @@ model SpecArtifact {
 
   @@unique([specIterationId, node])
   @@index([projectId, node, status])
+}
+
+model Clarification {
+  id            String          @id @default(cuid())
+  projectId     String          @unique
+  idea          String
+  clarifiedIdea String
+  keyIssues     Json
+  confidence    Float?
+  feedback      String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  project       ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model JudgeIssue {
+  id               String          @id @default(cuid())
+  projectId        String
+  specIterationId  String
+  judgeType        String
+  severity         String
+  title            String
+  description      String
+  suggestion       String
+  flaggedBy        String
+  choices          Json
+  status           String          @default("OPEN")
+  resolvedChoice   String?
+  customResolution String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  project          ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  specIteration    SpecIteration   @relation(fields: [specIterationId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, specIterationId, status])
 }
