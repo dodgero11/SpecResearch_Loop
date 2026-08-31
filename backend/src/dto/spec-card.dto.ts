@@ -35,9 +35,9 @@ export class UpdateSpecCardDto {
   @IsNotEmpty()
   content?: string;
 
-  // @IsOptional()
-  // @IsString()
-  // reason?: string;
+  @IsOptional()
+  @IsString()
+  reason?: string;
 
   @IsOptional()
   @IsEnum(SpecCardStatus)
