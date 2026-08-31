@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, CircleDot, Link2, Pencil, Trash2, X } from 'lucide-react'
+import { formatCardType } from '@/lib/spec-card-format'
 import { CARD_STATUSES, type CardStatus, type DecompositionCard } from './data'
 
 type IdeaCardProps = {
@@ -26,6 +27,7 @@ export function IdeaCard({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(card.content)
   const [showLinkMenu, setShowLinkMenu] = useState(false)
+  const [reasonDraft, setReasonDraft] = useState(card.reason)
 
   function handleSave() {
     const trimmed = draft.trim()
@@ -38,9 +40,17 @@ export function IdeaCard({
     setEditing(false)
   }
 
-  const isClaim = card.type === 'Claim'
+  useEffect(() => {
+    setReasonDraft(card.reason)
+  }, [card.reason])
+
+  function handleReasonBlur() {
+    if (reasonDraft !== card.reason) onReasonChange(reasonDraft)
+  }
+
+  const isClaim = card.type === 'CLAIM'
   const needsReason = card.status === 'AMBIGUOUS' || card.status === 'CONFLICT'
-  const evidenceCandidates = allCards.filter((item) => item.type === 'Evidence' && item.id !== card.id)
+  const evidenceCandidates = allCards.filter((item) => item.type === 'EVIDENCE' && item.id !== card.id)
   const linkedCards = card.linkedIds
     .map((id) => allCards.find((item) => item.id === id))
     .filter((item): item is DecompositionCard => Boolean(item))
@@ -50,12 +60,12 @@ export function IdeaCard({
       <div className="card-top">
         <span className="type-pill">
           <CircleDot size={14} />
-          {card.type}
+          {formatCardType(card.type)}
         </span>
         <select
           className="status-pill"
           value={card.status}
-          aria-label={`Trạng thái thẻ ${card.type}`}
+          aria-label={`Trạng thái thẻ ${formatCardType(card.type)}`}
           onChange={(e) => onStatusChange(e.target.value as CardStatus)}
         >
           {CARD_STATUSES.map((status) => (
@@ -87,8 +97,9 @@ export function IdeaCard({
             id={`reason-${card.id}`}
             className="reason-input"
             placeholder="Giải thích ngắn gọn lý do..."
-            value={card.reason}
-            onChange={(e) => onReasonChange(e.target.value)}
+            value={reasonDraft}
+            onChange={(e) => setReasonDraft(e.target.value)}
+            onBlur={handleReasonBlur}
           />
         </div>
       )}
@@ -98,7 +109,7 @@ export function IdeaCard({
           {linkedCards.map((linked) => (
             <span className="linked-tag" key={linked.id}>
               <Link2 size={12} />
-              {linked.type}
+              {formatCardType(linked.type)}
               <button
                 type="button"
                 onClick={() => onToggleLink(linked.id)}

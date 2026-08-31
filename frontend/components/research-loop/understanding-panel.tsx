@@ -1,33 +1,65 @@
 'use client'
 
-import { useState } from 'react'
-import { Brain, Check, Pencil, RefreshCw, ShieldCheck, Target } from 'lucide-react'
-import { ALTERNATE_UNDERSTANDINGS, DEFAULT_UNDERSTANDING } from './data'
-
-const UNDERSTANDING_VARIANTS = [DEFAULT_UNDERSTANDING, ...ALTERNATE_UNDERSTANDINGS]
+import { useEffect, useState } from 'react'
+import { AlertTriangle, Brain, Check, Pencil, RefreshCw, ShieldCheck, Target } from 'lucide-react'
+import type { Understanding } from './types'
 
 type UnderstandingPanelProps = {
   unlocked: boolean
   confirmed: boolean
-  onConfirmedChange: (confirmed: boolean) => void
+  understanding: Understanding | null
+  onRegenerate: (feedback: string) => Promise<Understanding>
+  onConfirm: (finalText: string) => Promise<void>
+  onUnconfirm: () => void
 }
 
-export function UnderstandingPanel({ unlocked, confirmed, onConfirmedChange }: UnderstandingPanelProps) {
-  const [text, setText] = useState(DEFAULT_UNDERSTANDING)
-  const [editing, setEditing] = useState(false)
-  const [variantIndex, setVariantIndex] = useState(0)
-  const [loadingExample, setLoadingExample] = useState(false)
+/** ai_service returns confidence as a 0-1 fraction; show it as a rounded percent. */
+function formatConfidence(confidence: number | null): string {
+  if (confidence === null) return '—'
+  return `${Math.round(confidence * 100)}%`
+}
 
-  function requestAnotherExample() {
+export function UnderstandingPanel({
+  unlocked,
+  confirmed,
+  understanding,
+  onRegenerate,
+  onConfirm,
+  onUnconfirm,
+}: UnderstandingPanelProps) {
+  const [text, setText] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [loadingExample, setLoadingExample] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (understanding) setText(understanding.clarifiedIdea)
+  }, [understanding])
+
+  async function requestAnotherExample() {
     setLoadingExample(true)
-    setTimeout(() => {
-      setVariantIndex((prev) => {
-        const next = (prev + 1) % UNDERSTANDING_VARIANTS.length
-        setText(UNDERSTANDING_VARIANTS[next])
-        return next
-      })
+    setError(null)
+    try {
+      await onRegenerate('Diễn giải lại theo một cách hiểu khác.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không tạo được ví dụ khác, thử lại.')
+    } finally {
       setLoadingExample(false)
-    }, 900)
+    }
+  }
+
+  async function handleConfirm() {
+    setConfirming(true)
+    setError(null)
+    try {
+      setEditing(false)
+      await onConfirm(text)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Xác nhận thất bại, thử lại.')
+    } finally {
+      setConfirming(false)
+    }
   }
 
   return (
@@ -49,7 +81,7 @@ export function UnderstandingPanel({ unlocked, confirmed, onConfirmedChange }: U
           autoFocus
         />
       ) : (
-        <div className="understanding-copy">{text}</div>
+        <div className="understanding-copy">{text || 'Chưa có nội dung — hãy phân tích ý tưởng ở trên trước.'}</div>
       )}
 
       <div className="problem-box">
@@ -58,32 +90,32 @@ export function UnderstandingPanel({ unlocked, confirmed, onConfirmedChange }: U
           Vấn đề chính
         </h3>
         <ul>
-          <li>Prompt thủ công có thể không ổn định</li>
-          <li>LLM dễ tạo unsupported claims</li>
-          <li>Cần cách kiểm tra claim–evidence rõ ràng</li>
+          {(understanding?.keyIssues ?? []).map((issue) => (
+            <li key={issue}>{issue}</li>
+          ))}
         </ul>
       </div>
 
       <div className="confidence">
         <ShieldCheck size={23} />
         <strong>Mức chắc chắn:</strong>
-        <span>Trung bình</span>
+        <span>{formatConfidence(understanding?.confidence ?? null)}</span>
       </div>
 
       {!unlocked && <p className="lock-note">Hoàn thành phân tích ý tưởng ở trên trước để xác nhận mục này.</p>}
 
+      {error && (
+        <div className="lock-note" role="alert">
+          <AlertTriangle size={16} />
+          {error}
+        </div>
+      )}
+
       {unlocked && !confirmed && (
         <div className="confirm-row wrap">
-          <button
-            type="button"
-            className="confirm-action"
-            onClick={() => {
-              setEditing(false)
-              onConfirmedChange(true)
-            }}
-          >
+          <button type="button" className="confirm-action" disabled={confirming} onClick={handleConfirm}>
             <Check size={18} />
-            Đúng rồi, tiếp tục
+            {confirming ? 'Đang xác nhận...' : 'Đúng rồi, tiếp tục'}
           </button>
           <button type="button" className="edit-action" onClick={() => setEditing((value) => !value)}>
             <Pencil size={16} />
@@ -107,7 +139,7 @@ export function UnderstandingPanel({ unlocked, confirmed, onConfirmedChange }: U
             className="edit-action"
             onClick={() => {
               setEditing(true)
-              onConfirmedChange(false)
+              onUnconfirm()
             }}
           >
             <Pencil size={16} />
