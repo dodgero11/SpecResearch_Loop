@@ -1,5 +1,11 @@
-import { SpecCardLinkType, SpecCardStatus, SpecCardType } from '@prisma/client';
-import { IsEnum, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import { SpecCardLinkType, SpecCardStatus, SpecCardType } from "@prisma/client";
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+} from "class-validator";
 
 export class CreateSpecCardDto {
   @IsEnum(SpecCardType)
@@ -28,6 +34,10 @@ export class UpdateSpecCardDto {
   @IsString()
   @IsNotEmpty()
   content?: string;
+
+  // @IsOptional()
+  // @IsString()
+  // reason?: string;
 
   @IsOptional()
   @IsEnum(SpecCardStatus)

@@ -1,4 +1,5 @@
 import { CircleDot } from 'lucide-react'
+import { formatCardType } from '@/lib/spec-card-format'
 import type { DecompositionCard } from './data'
 
 const WIDTH = 760
@@ -65,7 +66,7 @@ export function GraphView({ cards }: GraphViewProps) {
               title={card.content}
             >
               <CircleDot size={12} />
-              <span>{card.type}</span>
+              <span>{formatCardType(card.type)}</span>
             </div>
           )
         })}

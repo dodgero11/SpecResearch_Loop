@@ -1,34 +1,51 @@
 'use client'
 
-import { useState } from 'react'
-import { BarChart3, Check, Lightbulb, Loader2, Pencil, Tag } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { AlertTriangle, BarChart3, Check, Lightbulb, Loader2, Pencil, Tag } from 'lucide-react'
 import { DEFAULT_IDEA, IDEA_TAGS } from './data'
+import type { Understanding } from './types'
 
 type AnalysisStatus = 'idle' | 'analyzing' | 'done'
 
 type IdeaPanelProps = {
-  onAnalyzed: (done: boolean) => void
+  onAnalyze: (idea: string) => Promise<Understanding>
+  /** Called when the user unlocks the box to edit an already-analyzed idea — the
+   * parent should clear the now-stale understanding/questions built from the old text. */
+  onEditAgain?: () => void
+  /** Idea text + analyzed flag restored from GET /summary, once that finishes loading. */
+  restoredIdea?: string
+  restoredAnalyzed?: boolean
 }
 
-export function IdeaPanel({ onAnalyzed }: IdeaPanelProps) {
+export function IdeaPanel({ onAnalyze, onEditAgain, restoredIdea, restoredAnalyzed }: IdeaPanelProps) {
   const [idea, setIdea] = useState(DEFAULT_IDEA)
   const [focused, setFocused] = useState(false)
   const [status, setStatus] = useState<AnalysisStatus>('idle')
+  const [error, setError] = useState<string | null>(null)
 
-  function handleIdeaChange(value: string) {
-    setIdea(value)
-    if (status !== 'idle') {
+  useEffect(() => {
+    if (restoredIdea) setIdea(restoredIdea)
+    if (restoredAnalyzed) setStatus('done')
+    // Only meant to run once, right after the summary finishes loading.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restoredIdea, restoredAnalyzed])
+
+  async function handleAnalyze() {
+    setStatus('analyzing')
+    setError(null)
+    try {
+      await onAnalyze(idea)
+      setStatus('done')
+    } catch (err) {
       setStatus('idle')
-      onAnalyzed(false)
+      setError(err instanceof Error ? err.message : 'Phân tích ý tưởng thất bại, thử lại.')
     }
   }
 
-  function handleAnalyze() {
-    setStatus('analyzing')
-    setTimeout(() => {
-      setStatus('done')
-      onAnalyzed(true)
-    }, 1600)
+  function handleEditAgain() {
+    setStatus('idle')
+    setError(null)
+    onEditAgain?.()
   }
 
   return (
@@ -43,9 +60,10 @@ export function IdeaPanel({ onAnalyzed }: IdeaPanelProps) {
         <textarea
           aria-label="Ý tưởng nghiên cứu"
           value={focused ? idea : `“  ${idea}  ”`}
+          disabled={status === 'done'}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          onChange={(e) => handleIdeaChange(e.target.value)}
+          onChange={(e) => setIdea(e.target.value)}
         />
         <Pencil className="edit-icon" size={21} />
       </div>
@@ -63,31 +81,38 @@ export function IdeaPanel({ onAnalyzed }: IdeaPanelProps) {
           Đã phân tích xong ý tưởng của bạn.
         </div>
       )}
-      <button
-        className={`primary-action ${status === 'done' ? 'is-done' : ''}`}
-        type="button"
-        disabled={status === 'analyzing'}
-        onClick={handleAnalyze}
-      >
-        {status === 'idle' && (
-          <>
-            <BarChart3 size={23} />
-            Phân tích ý tưởng
-          </>
-        )}
-        {status === 'analyzing' && (
-          <>
-            <Loader2 className="spin-icon" size={23} />
-            Đang phân tích...
-          </>
-        )}
-        {status === 'done' && (
-          <>
-            <Check size={23} />
-            Đã phân tích xong
-          </>
-        )}
-      </button>
+      {error && (
+        <div className="lock-note" role="alert">
+          <AlertTriangle size={16} />
+          {error}
+        </div>
+      )}
+      {status === 'done' ? (
+        <button className="edit-action" type="button" onClick={handleEditAgain}>
+          <Pencil size={16} />
+          Phân tích lại
+        </button>
+      ) : (
+        <button
+          className="primary-action"
+          type="button"
+          disabled={status === 'analyzing' || idea.trim().length === 0}
+          onClick={handleAnalyze}
+        >
+          {status === 'idle' && (
+            <>
+              <BarChart3 size={23} />
+              Phân tích ý tưởng
+            </>
+          )}
+          {status === 'analyzing' && (
+            <>
+              <Loader2 className="spin-icon" size={23} />
+              Đang phân tích...
+            </>
+          )}
+        </button>
+      )}
     </section>
   )
 }

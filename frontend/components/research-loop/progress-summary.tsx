@@ -1,6 +1,7 @@
-import { Fragment } from 'react'
-import Link from 'next/link'
-import { ArrowRight, Check, FileText, Sparkles } from 'lucide-react'
+'use client'
+
+import { Fragment, useState } from 'react'
+import { AlertTriangle, ArrowRight, Check, FileText, Loader2, Sparkles } from 'lucide-react'
 import type { FlowState } from './types'
 
 type StepStatus = 'done' | 'current' | 'future'
@@ -11,7 +12,15 @@ function connectorClass(a: StepStatus, b: StepStatus) {
   return 'connector future-line'
 }
 
-export function ProgressSummary({ flow }: { flow: FlowState }) {
+type ProgressSummaryProps = {
+  flow: FlowState
+  onGoToStep2: () => Promise<void>
+}
+
+export function ProgressSummary({ flow, onGoToStep2 }: ProgressSummaryProps) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
   const ideaStatus: StepStatus = flow.ideaAnalyzed ? 'done' : 'current'
   const understandingStatus: StepStatus = flow.understandingConfirmed
     ? 'done'
@@ -31,6 +40,18 @@ export function ProgressSummary({ flow }: { flow: FlowState }) {
     { label: 'Xác nhận', status: questionsStatus },
     { label: 'Sang bước tiếp theo', status: nextStepStatus },
   ]
+
+  async function handleClick() {
+    setLoading(true)
+    setError(null)
+    try {
+      await onGoToStep2()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không phân rã được ý tưởng, thử lại.')
+      setLoading(false)
+    }
+    // no finally setLoading(false) on success — page navigates away right after
+  }
 
   return (
     <section className="summary">
@@ -54,10 +75,18 @@ export function ProgressSummary({ flow }: { flow: FlowState }) {
         ))}
       </div>
       {nextStepStatus === 'current' ? (
-        <Link href="/step-2" className="next-step-cta">
-          Xác nhận &amp; sang Bước 2
-          <ArrowRight size={20} />
-        </Link>
+        <>
+          <button type="button" className="next-step-cta" disabled={loading} onClick={handleClick}>
+            {loading ? <Loader2 className="spin-icon" size={20} /> : <ArrowRight size={20} />}
+            {loading ? 'Đang phân rã ý tưởng...' : 'Xác nhận & sang Bước 2'}
+          </button>
+          {error && (
+            <div className="lock-note" role="alert">
+              <AlertTriangle size={16} />
+              {error}
+            </div>
+          )}
+        </>
       ) : (
         <div className="hint">
           <Sparkles size={22} />

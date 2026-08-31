@@ -1,80 +1,125 @@
 'use client'
 
-import { useState } from 'react'
-import { GitBranch } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { GitBranch, Loader2 } from 'lucide-react'
 import { Header } from '@/components/research-loop/header'
+import { apiDelete, apiGet, apiPost, apiPut } from '@/lib/api'
+import { getProjectId } from '@/lib/project'
 import { Toolbar } from './toolbar'
 import { IdeaCard } from './card'
 import { AddCardForm } from './add-card-form'
 import { CreativePanel } from './creative-panel'
 import { GraphView } from './graph-view'
 import { ProgressSummary } from './progress-summary'
-import { initialCards, type CardStatus, type DecompositionCard } from './data'
+import { type CardStatus, type DecompositionCard, type SpecCardLink } from './data'
+
+type CardsResponse = {
+  cards: Array<{ id: string; type: string; content: string; status: CardStatus; isSeed: boolean; reason: string | null }>
+  links: SpecCardLink[]
+}
+
+/** Turns the raw {cards, links} the backend returns into the DecompositionCard shape the UI renders. */
+function toDecompositionCards(data: CardsResponse): DecompositionCard[] {
+  return data.cards.map((card) => {
+    const linkedIds = data.links
+      .filter((link) => link.sourceCardId === card.id || link.targetCardId === card.id)
+      .map((link) => (link.sourceCardId === card.id ? link.targetCardId : link.sourceCardId))
+    return {
+      id: card.id,
+      type: card.type,
+      content: card.content,
+      status: card.status,
+      isSeed: card.isSeed,
+      reason: card.reason ?? '',
+      linkedIds,
+    }
+  })
+}
 
 export default function StepTwo() {
-  const [cards, setCards] = useState(initialCards)
+  const [projectId, setProjectId] = useState<string | null>(null)
+  const [projectChecked, setProjectChecked] = useState(false)
+  const [cards, setCards] = useState<DecompositionCard[]>([])
+  const [links, setLinks] = useState<SpecCardLink[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [graphMode, setGraphMode] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
 
+  useEffect(() => {
+    setProjectId(getProjectId())
+    setProjectChecked(true)
+  }, [])
+
+  async function refetch(pid: string) {
+    const data = await apiGet<CardsResponse>(`/projects/${pid}/cards`)
+    setLinks(data.links)
+    setCards(toDecompositionCards(data))
+  }
+
+  useEffect(() => {
+    if (!projectId) return
+    setLoading(true)
+    setError(null)
+    refetch(projectId)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Không tải được danh sách thẻ.'))
+      .finally(() => setLoading(false))
+  }, [projectId])
+
+  async function withRefetch(action: () => Promise<unknown>) {
+    if (!projectId) return
+    setError(null)
+    try {
+      await action()
+      await refetch(projectId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Thao tác thất bại, thử lại.')
+    }
+  }
+
   function changeStatus(id: string, status: CardStatus) {
-    setCards((items) => items.map((item) => (item.id === id ? { ...item, status } : item)))
+    void withRefetch(() => apiPut(`/projects/${projectId}/cards/${id}`, { status }))
   }
 
   function editCardContent(id: string, content: string) {
-    setCards((items) => items.map((item) => (item.id === id ? { ...item, content } : item)))
+    void withRefetch(() => apiPut(`/projects/${projectId}/cards/${id}`, { content }))
   }
 
   function editReason(id: string, reason: string) {
-    setCards((items) => items.map((item) => (item.id === id ? { ...item, reason } : item)))
+    void withRefetch(() => apiPut(`/projects/${projectId}/cards/${id}`, { reason }))
   }
 
   function deleteCard(id: string) {
-    setCards((items) => items.filter((item) => item.id !== id))
+    void withRefetch(() => apiDelete(`/projects/${projectId}/cards/${id}`))
   }
 
   function toggleLink(cardId: string, targetId: string) {
-    setCards((items) =>
-      items.map((item) => {
-        if (item.id === cardId) {
-          const linked = item.linkedIds.includes(targetId)
-          return {
-            ...item,
-            linkedIds: linked ? item.linkedIds.filter((id) => id !== targetId) : [...item.linkedIds, targetId],
-          }
-        }
-        if (item.id === targetId) {
-          const linked = item.linkedIds.includes(cardId)
-          return {
-            ...item,
-            linkedIds: linked ? item.linkedIds.filter((id) => id !== cardId) : [...item.linkedIds, cardId],
-          }
-        }
-        return item
-      }),
+    const existing = links.find(
+      (link) =>
+        (link.sourceCardId === cardId && link.targetCardId === targetId) ||
+        (link.sourceCardId === targetId && link.targetCardId === cardId),
     )
+    if (existing) {
+      void withRefetch(() => apiDelete(`/projects/${projectId}/card-links/${existing.id}`))
+    } else {
+      void withRefetch(() =>
+        apiPost(`/projects/${projectId}/card-links`, { sourceCardId: cardId, targetCardId: targetId, type: 'CLAIM_EVIDENCE' }),
+      )
+    }
   }
 
-  function addCard(newCard: Pick<DecompositionCard, 'type' | 'content'>) {
-    setCards((items) => {
-      const created: DecompositionCard = {
-        id: crypto.randomUUID(),
-        type: newCard.type,
-        content: newCard.content,
-        status: 'PROPOSED',
-        isSeed: false,
-        linkedIds: [],
-        reason: '',
-      }
-      const lastSameTypeIndex = items.reduce(
-        (lastIndex, item, index) => (item.type === newCard.type ? index : lastIndex),
-        -1,
-      )
-      if (lastSameTypeIndex === -1) return [...items, created]
-      const next = [...items]
-      next.splice(lastSameTypeIndex + 1, 0, created)
-      return next
-    })
-    setShowAddForm(false)
+  async function addCard(newCard: Pick<DecompositionCard, 'type' | 'content'>) {
+    if (!projectId) return
+    setError(null)
+    try {
+      await apiPost(`/projects/${projectId}/cards`, { type: newCard.type, content: newCard.content })
+      await refetch(projectId)
+      setShowAddForm(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Thêm thẻ thất bại, thử lại.')
+      throw err // let AddCardForm know not to clear what the user typed
+    }
   }
 
   return (
@@ -93,37 +138,58 @@ export default function StepTwo() {
           </div>
         </div>
 
-        <Toolbar
-          cardCount={cards.length}
-          graphMode={graphMode}
-          onToggleGraph={() => setGraphMode((value) => !value)}
-          onAddCardClick={() => setShowAddForm((value) => !value)}
-        />
-
-        {showAddForm && <AddCardForm onSubmit={addCard} onCancel={() => setShowAddForm(false)} />}
-
-        {graphMode ? (
-          <GraphView cards={cards} />
-        ) : (
-          <section className="cards-grid">
-            {cards.map((card) => (
-              <IdeaCard
-                card={card}
-                allCards={cards}
-                key={card.id}
-                onStatusChange={(status) => changeStatus(card.id, status)}
-                onDelete={() => deleteCard(card.id)}
-                onEditContent={(content) => editCardContent(card.id, content)}
-                onToggleLink={(targetId) => toggleLink(card.id, targetId)}
-                onReasonChange={(reason) => editReason(card.id, reason)}
-              />
-            ))}
-          </section>
+        {projectChecked && !projectId && (
+          <p className="lock-note">
+            Chưa có dự án nào — quay lại{' '}
+            <Link href="/" style={{ textDecoration: 'underline' }}>
+              Bước 1
+            </Link>{' '}
+            để bắt đầu.
+          </p>
         )}
+        {projectId && loading && (
+          <p className="lock-note">
+            <Loader2 className="spin-icon" size={16} style={{ display: 'inline', marginRight: 6 }} />
+            Đang tải thẻ...
+          </p>
+        )}
+        {error && <p className="lock-note">{error}</p>}
 
-        <CreativePanel />
+        {projectId && !loading && (
+          <>
+            <Toolbar
+              cardCount={cards.length}
+              graphMode={graphMode}
+              onToggleGraph={() => setGraphMode((value) => !value)}
+              onAddCardClick={() => setShowAddForm((value) => !value)}
+            />
 
-        <ProgressSummary cards={cards} />
+            {showAddForm && <AddCardForm onSubmit={addCard} onCancel={() => setShowAddForm(false)} />}
+
+            {graphMode ? (
+              <GraphView cards={cards} />
+            ) : (
+              <section className="cards-grid">
+                {cards.map((card) => (
+                  <IdeaCard
+                    card={card}
+                    allCards={cards}
+                    key={card.id}
+                    onStatusChange={(status) => changeStatus(card.id, status)}
+                    onDelete={() => deleteCard(card.id)}
+                    onEditContent={(content) => editCardContent(card.id, content)}
+                    onToggleLink={(targetId) => toggleLink(card.id, targetId)}
+                    onReasonChange={(reason) => editReason(card.id, reason)}
+                  />
+                ))}
+              </section>
+            )}
+
+            <CreativePanel />
+
+            <ProgressSummary cards={cards} />
+          </>
+        )}
       </main>
     </div>
   )
