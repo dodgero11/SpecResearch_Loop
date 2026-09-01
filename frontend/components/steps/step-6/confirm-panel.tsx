@@ -2,16 +2,17 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { CheckCircle2, FileDown, FileText, Loader2, Pencil } from 'lucide-react'
+import { CheckCircle2, FileDown, FileJson, FileText, Loader2, Pencil } from 'lucide-react'
 
 type ConfirmPanelProps = {
   specConfirmed: boolean
   onConfirm: () => Promise<void>
   onExportPdf: () => Promise<void>
   onExportMarkdown: () => void
+  onExportJson: () => void
 }
 
-export function ConfirmPanel({ specConfirmed, onConfirm, onExportPdf, onExportMarkdown }: ConfirmPanelProps) {
+export function ConfirmPanel({ specConfirmed, onConfirm, onExportPdf, onExportMarkdown, onExportJson }: ConfirmPanelProps) {
   const [confirming, setConfirming] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
 
@@ -67,6 +68,16 @@ export function ConfirmPanel({ specConfirmed, onConfirm, onExportPdf, onExportMa
         >
           <FileDown size={15} />
           Xuất Markdown
+        </button>
+        <button
+          type="button"
+          className="outline-action"
+          disabled={!specConfirmed}
+          title={!specConfirmed ? 'Cần xác nhận spec trước khi xuất' : undefined}
+          onClick={onExportJson}
+        >
+          <FileJson size={15} />
+          Xuất JSON
         </button>
       </div>
     </div>

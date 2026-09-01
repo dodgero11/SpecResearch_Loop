@@ -71,6 +71,12 @@ export default function StepSix() {
     downloadBlob(new Blob([result.markdownContent], { type: 'text/markdown' }), 'spec.md')
   }
 
+  function handleExportJson() {
+    if (!result || !result.specJson) return
+    const jsonString = JSON.stringify(result.specJson, null, 2)
+    downloadBlob(new Blob([jsonString], { type: 'application/json' }), 'spec.json')
+  }
+
   return (
     <div className="app-shell">
       <Header />
@@ -111,6 +117,7 @@ export default function StepSix() {
                   onConfirm={handleConfirm}
                   onExportPdf={handleExportPdf}
                   onExportMarkdown={handleExportMarkdown}
+                  onExportJson={handleExportJson}
                 />
               </section>
             </div>

@@ -2,8 +2,10 @@ import os
 import json
 import time
 import re
-import google.generativeai as genai
 from typing import Dict, Any, Optional, List
+from google import genai
+from google.genai import types
+from google.genai.errors import APIError
 from schemas.spec_schemas import (
     ClarifyUnderstandResponse, ClarifyQuestionsResponse, QuestionItem,
     DecomposeResponse, SpecCardSchema, SpecCardType, SpecCardStatus,
@@ -18,18 +20,19 @@ from schemas.spec_schemas import (
 class LlmService:
     def __init__(self):
         self.api_key = os.getenv("GEMINI_API_KEY", "").strip(' "\'')
-        # Clean model name (support gemini-1.5-flash, gemini-2.0-flash, etc.)
-        raw_model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash").strip(' "\'')
-        if not raw_model or "gemini-3" in raw_model:
-            raw_model = "gemini-1.5-flash"
-        self.model_name = raw_model
-        self.fallback_models = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
+        self.model_name = os.getenv("GEMINI_MODEL", "gemini-3.6-flash").strip(' "\'')
+        self.fallback_models = [
+            self.model_name,
+            "gemini-3.7-flash",
+            "gemini-1.5-flash",
+        ]
+        self.client: Optional[genai.Client] = None
         
         if self.api_key and len(self.api_key) > 10:
             try:
-                genai.configure(api_key=self.api_key)
+                self.client = genai.Client(api_key=self.api_key)
             except Exception as e:
-                print(f"[Warning] Failed to configure Gemini API: {e}")
+                print(f"[Warning] Failed to initialize Google GenAI Client: {e}")
 
     def _clean_json_text(self, text: str) -> str:
         """Strip markdown fences and whitespace from LLM response."""
@@ -49,43 +52,57 @@ class LlmService:
             return match.group(1)
         return text
 
-    def call_gemini_structured(self, prompt: str, response_schema: Any, max_retries: int = 3) -> Any:
+    def call_gemini_structured(self, prompt: str, response_schema: Any, max_retries: int = 2) -> Any:
         """
-        Call Gemini API and return parsed Pydantic schema response with retry & model fallback.
+        Call Gemini API using google-genai SDK and return parsed Pydantic schema response with fast retry & model fallback.
         """
         if not self.api_key or len(self.api_key) < 10:
             raise ValueError("GEMINI_API_KEY is not set or invalid.")
+        if not self.client:
+            self.client = genai.Client(api_key=self.api_key)
             
-        models_to_try = [self.model_name] + [m for m in self.fallback_models if m != self.model_name]
+        # Deduplicate candidate models
+        seen = set()
+        models_to_try = [m for m in self.fallback_models if m and not (m in seen or seen.add(m))]
         last_error = None
 
         for model_candidate in models_to_try:
             for attempt in range(max_retries):
                 try:
-                    model = genai.GenerativeModel(model_candidate)
                     try:
-                        # Attempt native structured output
-                        generation_config = {
-                            "response_mime_type": "application/json",
-                            "response_schema": response_schema,
-                            "temperature": 0.2
-                        }
-                        response = model.generate_content(
-                            prompt,
-                            generation_config=generation_config
+                        # Attempt native structured output via GenerateContentConfig
+                        config = types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            response_schema=response_schema,
+                            temperature=0.2,
                         )
-                        raw_text = self._clean_json_text(response.text)
+                        response = self.client.models.generate_content(
+                            model=model_candidate,
+                            contents=prompt,
+                            config=config,
+                        )
+                        raw_text = self._clean_json_text(response.text or "")
                         data = json.loads(raw_text)
                         return response_schema.model_validate(data)
                     except Exception as inner_e:
+                        inner_str = str(inner_e).lower()
+                        # If 404 or 429 quota error, re-raise immediately to break to next model
+                        if "404" in inner_str or "429" in inner_str or "quota" in inner_str or "resourceexhausted" in inner_str or "not_found" in inner_str:
+                            raise inner_e
+                            
                         # Fallback to prompt-guided JSON generation if schema mode throws an exception
-                        print(f"[Warning] Native schema generation failed ({inner_e}), trying prompt-guided JSON parse...")
+                        print(f"[Warning] Native schema generation failed on {model_candidate} ({inner_e}), trying prompt-guided JSON parse...")
                         json_prompt = f"{prompt}\n\nIMPORTANT: Return ONLY a valid JSON object matching the required schema. Do not add any markdown formatting or commentary."
-                        response = model.generate_content(
-                            json_prompt,
-                            generation_config={"temperature": 0.2}
+                        config = types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            temperature=0.2,
                         )
-                        raw_text = self._clean_json_text(response.text)
+                        response = self.client.models.generate_content(
+                            model=model_candidate,
+                            contents=json_prompt,
+                            config=config,
+                        )
+                        raw_text = self._clean_json_text(response.text or "")
                         data = json.loads(raw_text)
                         return response_schema.model_validate(data)
                         
@@ -94,15 +111,21 @@ class LlmService:
                     err_str = str(e).lower()
                     print(f"[Attempt {attempt + 1}/{max_retries} with {model_candidate}] Error in Gemini structured call: {e}")
                     
-                    # If rate limited or transient error, sleep with exponential backoff
-                    if "429" in err_str or "quota" in err_str or "resourceexhausted" in err_str:
-                        sleep_sec = 2 ** (attempt + 1)
-                        print(f"Rate limited. Backing off for {sleep_sec}s...")
-                        time.sleep(sleep_sec)
+                    # If 404 NOT_FOUND or 429 QUOTA EXCEEDED, immediately switch to next model without waiting
+                    if "404" in err_str or "not_found" in err_str or "429" in err_str or "quota" in err_str or "resourceexhausted" in err_str:
+                        print(f"[Notice] Model '{model_candidate}' returned 404/429. Switching immediately to next fallback candidate...")
+                        break
+                    
+                    # If transient 503 server unavailable, quick 1s backoff for 1 retry max
+                    if "503" in err_str or "unavailable" in err_str:
+                        if attempt < max_retries - 1:
+                            time.sleep(1)
+                        else:
+                            break
                     elif attempt < max_retries - 1:
                         time.sleep(1)
                     else:
-                        break # Try next candidate model
+                        break
 
         raise last_error or RuntimeError("Gemini structured call failed across all candidate models.")
 

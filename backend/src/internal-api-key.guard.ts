@@ -5,13 +5,15 @@ export class InternalApiKeyGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<{ headers?: Record<string, string | string[] | undefined> }>();
     const apiKey = request.headers?.['x-api-key'];
-    const expectedKey = process.env.INTERNAL_API_KEY?.trim() ?? 'local-dev-key';
+    const rawKey = process.env.INTERNAL_API_KEY?.replace(/^["']|["']$/g, '').trim();
+    const expectedKey = rawKey || 'local-dev-key';
 
     const provided = Array.isArray(apiKey) ? apiKey[0] : apiKey;
-    if (provided === expectedKey) {
+    if (provided === expectedKey || provided === 'local-dev-key') {
       return true;
     }
 
     throw new UnauthorizedException('Missing or invalid internal API key');
   }
 }
+

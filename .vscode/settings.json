@@ -1,0 +1,19 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/ai_service/venv/Scripts/python.exe",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/ai_service",
+    "${workspaceFolder}/ai_service/venv/Lib/site-packages",
+    "./ai_service",
+    "./ai_service/venv/Lib/site-packages"
+  ],
+  "python.autoComplete.extraPaths": [
+    "${workspaceFolder}/ai_service",
+    "${workspaceFolder}/ai_service/venv/Lib/site-packages",
+    "./ai_service",
+    "./ai_service/venv/Lib/site-packages"
+  ],
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingImports": "none",
+    "reportMissingModuleSource": "none"
+  }
+}

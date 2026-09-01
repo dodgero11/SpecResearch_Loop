@@ -11,8 +11,10 @@ describe('HTTP API', () => {
   let prisma: PrismaService;
   let projectId: string;
   let specId: string;
+  const originalAiUrl = process.env.AI_SERVICE_URL;
 
   beforeAll(async () => {
+    delete process.env.AI_SERVICE_URL;
     const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = module.createNestApplication();
     const { ValidationPipe } = await import('@nestjs/common');
@@ -23,6 +25,7 @@ describe('HTTP API', () => {
   });
 
   afterAll(async () => {
+    if (originalAiUrl !== undefined) process.env.AI_SERVICE_URL = originalAiUrl;
     if (projectId) await prisma.researchProject.delete({ where: { id: projectId } });
     await app.close();
   });

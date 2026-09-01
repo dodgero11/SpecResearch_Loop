@@ -1,35 +1,151 @@
-# Compiled / Build output
-dist/
+# ==============================================================================
+# SpecResearch Loop — Master .gitignore
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Environment & Secrets (Never commit credentials, API keys, or secret envs)
+# ------------------------------------------------------------------------------
+.env
+.env.*
+.env*.local
+*.env
+*.env.local
+!.env.example
+!.env.*.example
+
+# Credentials & Key Files
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.pub
+secrets.json
+credentials.json
+service-account*.json
+token.json
+
+# ------------------------------------------------------------------------------
+# 2. Python, AI Cache & Virtual Environments
+# ------------------------------------------------------------------------------
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+ai_service/venv/
+ai_service/.venv/
+
+# Bytecode & Caches
+__pycache__/
+**/*/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 build/
-out/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing & Type checking
+.pytest_cache/
+**/.pytest_cache/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+htmlcov/
+.hypothesis/
+.tox/
+.nox/
+.mypy_cache/
+.pyre/
+.pytype/
+.ruff_cache/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ------------------------------------------------------------------------------
+# 3. Node.js, Frontend & Backend Build Artifacts
+# ------------------------------------------------------------------------------
+node_modules/
+**/node_modules/
+jspm_packages/
+.npm/
+.eslintcache
+.stylelintcache
+.tsbuildinfo
 *.tsbuildinfo
 
-# Dependencies
-node_modules/
+# Next.js & Frontend Builds
+.next/
+**/.next/
+out/
+.swc/
+.turbo/
+.vercel/
+.v0-trash/
+.snowflake/
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+
+# NestJS / Backend Builds
+backend/dist/
+dist/
+backendmem/
+
+# Package manager logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Environment & Secrets (keep .env.example tracked)
-.env
-.env.*
-!.env.example
-
-# Prisma
+# ------------------------------------------------------------------------------
+# 4. Database, Local Storage & Prisma
+# ------------------------------------------------------------------------------
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite3-journal
+*.dump
+*.sql.gz
+*.bak
 .prisma/
+**/prisma/*.db
+**/prisma/*.sqlite
 
-# Testing & Coverage
-coverage/
-.nyc_output/
-
-# Logs
+# ------------------------------------------------------------------------------
+# 5. Logs & Runtime Output
+# ------------------------------------------------------------------------------
 logs/
 *.log
 
-# IDE & Editor files
+# ------------------------------------------------------------------------------
+# 6. IDE & Editor Artifacts
+# ------------------------------------------------------------------------------
 .idea/
+.vs/
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
@@ -42,8 +158,11 @@ logs/
 *.njsproj
 *.sln
 *.sw?
+*.bak
 
-# OS metadata
+# ------------------------------------------------------------------------------
+# 7. OS & Metadata Files
+# ------------------------------------------------------------------------------
 .DS_Store
 .DS_Store?
 ._*
@@ -51,21 +170,15 @@ logs/
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# Repomix & temporary dumps (optional)
+# ------------------------------------------------------------------------------
+# 8. Temporary Dumps & Scratch Files
+# ------------------------------------------------------------------------------
 repomix-output*
 info.md
 rules.md
 TỔNG-HỢP.txt
-
-# Backend specific
-backendmem/
-
-# Python virtual environments & caches
-ai_service/venv/
-ai_service/.venv/
-**/__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
+scratch/
+*.tmp
+*.temp
