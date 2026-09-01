@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { DecisionService } from './decision.service';
 import { DependencyGraphService, WorkflowNode } from './dependency-graph.service';
 import { JudgeService, JudgeType } from './judge.service';
 import { PrismaService } from './prisma.service';
@@ -19,6 +20,7 @@ export class IssueService {
     private readonly prisma: PrismaService,
     private readonly projects: ProjectService,
     private readonly judges: JudgeService,
+    private readonly decisions: DecisionService,
     private readonly dependencyGraph: DependencyGraphService,
   ) {}
 
@@ -51,6 +53,7 @@ export class IssueService {
       });
     }
     const judgeResult = await this.judges.runJudge(projectId, judgeType);
+    await this.decisions.record(projectId, 'ACCEPT', `issue:${issueId}`, { choice, customChoice });
     return { updatedIssue, invalidatedNodes, judgeResult };
   }
 }

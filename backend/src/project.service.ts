@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, SpecIteration } from "@prisma/client";
 import { DependencyGraphService } from "./dependency-graph.service";
@@ -307,6 +308,61 @@ export class ProjectService {
     });
   }
 
+  /** Removes a related-work entry (matched by id, source_url, or paper_title). */
+  async removeRelatedWork(projectId: string, workId: string): Promise<SpecIteration> {
+    return this.prisma.$transaction(async (transaction) => {
+      const project = await transaction.researchProject.findUnique({
+        where: { id: projectId },
+        include: { latestSpec: true },
+      });
+      if (!project?.latestSpec)
+        throw new NotFoundException(
+          `No latest spec exists for project ${projectId}`,
+        );
+      const current = project.latestSpec;
+      const currentData = current.data as SpecData;
+      const existing = this.asRelatedWorkArray(currentData.relatedWork);
+      const remaining = existing.filter(
+        (entry) => !this.isRelatedWork(entry, workId),
+      );
+      if (remaining.length === existing.length) {
+        throw new NotFoundException(`Related work ${workId} was not found`);
+      }
+      const nextData = { ...currentData, relatedWork: remaining };
+      const spec = await transaction.specIteration.create({
+        data: {
+          projectId,
+          version: current.version + 1,
+          data: nextData as Prisma.InputJsonValue,
+        },
+      });
+      await transaction.researchProject.update({
+        where: { id: projectId },
+        data: { latestSpecId: spec.id },
+      });
+      await this.cloneCardsAndLinks(
+        transaction,
+        projectId,
+        current.id,
+        spec.id,
+      );
+      const affectedNodes =
+        this.dependencyGraph.getAffectedNodes("related_work");
+      for (const affectedNode of affectedNodes) {
+        await transaction.specArtifact.create({
+          data: {
+            projectId,
+            specIterationId: spec.id,
+            node: affectedNode,
+            status: "STALE",
+            data: {},
+          },
+        });
+      }
+      return spec;
+    });
+  }
+
   /** Maps a dependency-graph node name to the spec `data` key it is stored under. */
   private dataKeyForNode(node: string): string {
     return node === "related_work" ? "relatedWork" : node;
@@ -373,6 +429,7 @@ export class ProjectService {
     sourceType?: string;
   }): Record<string, unknown> {
     return {
+      id: randomUUID(),
       paper_title: input.title,
       authors: "",
       year: input.year ? Number(input.year) || 0 : 0,
@@ -398,6 +455,18 @@ export class ProjectService {
       String(right.paper_title ?? "")
         .trim()
         .toLowerCase()
+    );
+  }
+
+  private isRelatedWork(entry: Record<string, unknown>, workId: string): boolean {
+    const id = String(entry.id ?? "");
+    if (id && id === workId) return true;
+    const url = String(entry.source_url ?? "");
+    if (url && url === workId) return true;
+    return (
+      String(entry.paper_title ?? "")
+        .trim()
+        .toLowerCase() === workId.trim().toLowerCase()
     );
   }
 

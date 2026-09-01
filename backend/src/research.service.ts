@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { SpecCardStatus, SpecCardType } from '@prisma/client';
+import { DecisionService } from './decision.service';
 import { DependencyGraphService, WorkflowNode } from './dependency-graph.service';
 import { AI_GATEWAY, AiGateway } from './integrations/ai-gateway.port';
 import { PrismaService } from './prisma.service';
@@ -19,6 +20,7 @@ export class ResearchService {
     private readonly prisma: PrismaService,
     private readonly projects: ProjectService,
     private readonly cards: SpecCardService,
+    private readonly decisions: DecisionService,
     private readonly dependencyGraph: DependencyGraphService,
     @Inject(AI_GATEWAY) private readonly ai: AiGateway,
   ) {}
@@ -63,13 +65,20 @@ export class ResearchService {
   }
 
   /** Step 3b2: persist the user's selected focus direction (A-D) for Step 4. */
-  async selectDirection(projectId: string, letter: string) {
+  async selectDirection(projectId: string, letter: string, customDirection?: string) {
     const spec = await this.projects.latestSpec(projectId);
     const data = spec.data as SpecData;
-    const gapAnalysis = (data.gapAnalysis ?? { directions: [] }) as { directions?: { letter: string; selected?: boolean }[] };
-    const directions = (gapAnalysis.directions ?? []).map((item) => ({ ...item, selected: item.letter === letter }));
+    const gapAnalysis = (data.gapAnalysis ?? { directions: [] }) as { directions?: { letter: string; label?: string; selected?: boolean }[] };
+    const directions = (gapAnalysis.directions ?? []).map((item) => {
+      const selected = item.letter === letter;
+      // For "Other" (D), persist the user's custom text as the direction label so
+      // Step 4 sends the actual content to the AI instead of the bare letter.
+      const label = selected && letter === 'D' && customDirection ? customDirection : item.label;
+      return { ...item, label, selected };
+    });
     const nextGapAnalysis = { ...gapAnalysis, directions };
     await this.projects.createSpec(projectId, { ...data, gapAnalysis: nextGapAnalysis });
+    await this.decisions.record(projectId, 'ACCEPT', 'direction', { letter, customDirection });
     return { selected: letter, directions };
   }
 
@@ -140,6 +149,7 @@ export class ResearchService {
       updated = (await this.cards.update(projectId, claimCardId, { metadata: { resolution } })) as { card: Record<string, unknown> };
     }
     const invalidatedNodes = this.dependencyGraph.getAffectedNodes('claim');
+    await this.decisions.record(projectId, 'ACCEPT', `conflict:${conflictId}`, { choice, customResolution });
     return { updatedCard: updated.card, invalidatedNodes };
   }
 

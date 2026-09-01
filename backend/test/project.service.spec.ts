@@ -153,7 +153,7 @@ describe('ProjectService', () => {
         data: expect.objectContaining({
           relatedWork: [
             { paper_title: 'Existing', source_url: 'https://a.com' },
-            { paper_title: 'New Paper', authors: '', year: 0, what_they_did: '', feedback: '', missing_points: '', source_url: 'https://b.com', source_type: '' },
+            { paper_title: 'New Paper', id: expect.any(String), authors: '', year: 0, what_they_did: '', feedback: '', missing_points: '', source_url: 'https://b.com', source_type: '' },
           ],
         }),
       }),
@@ -186,12 +186,38 @@ describe('ProjectService', () => {
     expect(transaction.specIteration.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         data: expect.objectContaining({
-          relatedWork: [{ paper_title: 'First Paper', authors: '', year: 0, what_they_did: '', feedback: '', missing_points: '', source_url: '', source_type: '' }],
+          relatedWork: [{ paper_title: 'First Paper', id: expect.any(String), authors: '', year: 0, what_they_did: '', feedback: '', missing_points: '', source_url: '', source_type: '' }],
         }),
       }),
     }));
   });
+  it('removes a related work by id and invalidates dependents', async () => {
+    const { service, transaction } = makeService({
+      id: 'project-1',
+      latestSpec: { id: 'spec-1', version: 1, data: { relatedWork: [{ id: 'rw-1', paper_title: 'A', source_url: 'https://a.com' }, { id: 'rw-2', paper_title: 'B', source_url: 'https://b.com' }] } },
+    });
 
+    const result = await service.removeRelatedWork('project-1', 'rw-1');
+
+    expect(result.version).toBe(2);
+    expect(transaction.specIteration.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        data: expect.objectContaining({
+          relatedWork: [{ id: 'rw-2', paper_title: 'B', source_url: 'https://b.com' }],
+        }),
+      }),
+    }));
+    expect(transaction.specArtifact.create).toHaveBeenCalledTimes(5);
+  });
+
+  it('removeRelatedWork throws NotFound for an unknown work', async () => {
+    const { service } = makeService({
+      id: 'project-1',
+      latestSpec: { id: 'spec-1', version: 1, data: { relatedWork: [{ id: 'rw-1', paper_title: 'A' }] } },
+    });
+
+    await expect(service.removeRelatedWork('project-1', 'nope')).rejects.toThrow('Related work nope was not found');
+  });
   it('lists projects with their latest spec summary', async () => {
     const { service, prisma } = makeService({});
     prisma.researchProject.findMany.mockResolvedValue([

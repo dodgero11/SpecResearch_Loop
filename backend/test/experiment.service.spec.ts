@@ -3,8 +3,9 @@ import { ExperimentService } from '../src/experiment.service';
 describe('ExperimentService', () => {
   const prisma = { specCard: { findMany: jest.fn() } };
   const projects = { latestSpec: jest.fn(), createSpec: jest.fn() };
+  const decisions = { record: jest.fn() };
   const ai = { specExperiment: jest.fn(), singleClaimExperiment: jest.fn() };
-  const service = new ExperimentService(prisma as never, projects as never, ai as never);
+  const service = new ExperimentService(prisma as never, projects as never, decisions as never, ai as never);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -49,6 +50,49 @@ describe('ExperimentService', () => {
 
     expect(result.contribution).toMatchObject({ label: 'My contribution', claimEvidence: null });
     expect(ai.specExperiment).not.toHaveBeenCalled();
+  });
+
+  it('generatePlan sends the direction label (not the letter) to ai_service', async () => {
+    projects.latestSpec.mockResolvedValue({ id: 'spec-1', version: 1, data: { gapAnalysis: { directions: [{ letter: 'D', label: 'Hướng tự chọn', selected: true }] } } });
+    prisma.specCard.findMany.mockResolvedValue([
+      { type: 'PROBLEM', content: 'P' },
+      { type: 'GAP_CANDIDATE', content: 'G' },
+    ]);
+    ai.specExperiment.mockResolvedValue({
+      output: { contributions: [], claims: [], experiments: [], feasibility_estimation: {} },
+    });
+    projects.createSpec.mockResolvedValue({});
+
+    await service.generatePlan('project-1');
+
+    expect(ai.specExperiment).toHaveBeenCalledWith('P', 'G', 'Hướng tự chọn');
+  });
+
+  it('updateContribution renames an existing contribution', async () => {
+    projects.latestSpec.mockResolvedValue({
+      id: 'spec-1',
+      version: 1,
+      data: { experimentPlan: { contributions: [{ id: 'contrib-1', label: 'C1', claimEvidence: null }], experiments: [], feasibility: {} } },
+    });
+    projects.createSpec.mockResolvedValue({});
+
+    const result = await service.updateContribution('project-1', 'contrib-1', 'C1 mới');
+
+    expect(result.contribution).toMatchObject({ id: 'contrib-1', label: 'C1 mới' });
+    expect(projects.createSpec).toHaveBeenCalledWith(
+      'project-1',
+      expect.objectContaining({ experimentPlan: expect.objectContaining({ contributions: [{ id: 'contrib-1', label: 'C1 mới', claimEvidence: null }] }) }),
+    );
+  });
+
+  it('updateContribution throws NotFound for an unknown contribution', async () => {
+    projects.latestSpec.mockResolvedValue({
+      id: 'spec-1',
+      version: 1,
+      data: { experimentPlan: { contributions: [], experiments: [], feasibility: {} } },
+    });
+
+    await expect(service.updateContribution('project-1', 'nope', 'X')).rejects.toThrow('Contribution nope was not found');
   });
 
   it('saveClaimEvidence generates an experiment when none is linked', async () => {

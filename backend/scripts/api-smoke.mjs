@@ -183,4 +183,11 @@ res = await req('POST', `/projects/${projectId}/related-works`, { body: { title:
 ok(res, 201, 'POST /projects/:id/related-works (duplicate)');
 assert.equal(res.body.version, rwVersion, 'duplicate does not bump version');
 
+// 30. Delete related work by id
+const rwId = res.body.data.relatedWork.find((r) => r.paper_title === 'Smoke related paper').id;
+assert.ok(rwId, 'related work has an id');
+res = await req('DELETE', `/projects/${projectId}/related-works/${rwId}`);
+ok(res, 201, 'DELETE /projects/:id/related-works/:workId');
+assert.ok(!res.body.data.relatedWork.some((r) => r.id === rwId), 'related work removed');
+
 console.log('\nALL API SMOKE TESTS PASSED');

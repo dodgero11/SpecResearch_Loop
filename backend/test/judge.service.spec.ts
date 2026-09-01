@@ -23,7 +23,7 @@ describe('JudgeService', () => {
     const prisma = {
       llmAuditLog: { create: jest.fn().mockResolvedValue({ id: 'audit' }) },
       specIteration: { findFirst: jest.fn().mockResolvedValue({ id: 'spec-1' }) },
-      judgeIssue: { create: jest.fn().mockResolvedValue({ id: 'issue-1' }) },
+      judgeIssue: { create: jest.fn().mockResolvedValue({ id: 'issue-1' }), deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
     };
     const service = new JudgeService(contextBuilder as never, prisma as never, llm);
 
@@ -60,7 +60,7 @@ describe('JudgeService', () => {
     const prisma = {
       llmAuditLog: { create: jest.fn().mockResolvedValue({ id: 'audit' }) },
       specIteration: { findFirst: jest.fn().mockResolvedValue({ id: 'spec-1' }) },
-      judgeIssue: { create: jest.fn().mockResolvedValue({ id: 'issue-1' }) },
+      judgeIssue: { create: jest.fn().mockResolvedValue({ id: 'issue-1' }), deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
     };
     const service = new JudgeService(contextBuilder as never, prisma as never, llm);
 
@@ -116,7 +116,7 @@ describe('JudgeService', () => {
     const prisma = {
       llmAuditLog: { create: jest.fn() },
       specIteration: { findFirst: jest.fn().mockResolvedValue({ id: 'spec-1' }) },
-      judgeIssue: { create: jest.fn().mockResolvedValue({ id: 'issue-1' }) },
+      judgeIssue: { create: jest.fn().mockResolvedValue({ id: 'issue-1' }), deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
     };
     const service = new JudgeService(contextBuilder as never, prisma as never, llm);
 

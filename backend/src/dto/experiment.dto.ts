@@ -6,6 +6,12 @@ export class CreateContributionDto {
   label!: string;
 }
 
+export class UpdateContributionDto {
+  @IsString()
+  @IsNotEmpty()
+  label!: string;
+}
+
 export class ClaimEvidenceDto {
   @IsString()
   @IsNotEmpty()

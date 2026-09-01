@@ -8,8 +8,9 @@ describe('IssueService', () => {
   };
   const projects = { latestSpec: jest.fn() };
   const judges = { runJudge: jest.fn() };
+  const decisions = { record: jest.fn() };
   const dependencyGraph = new DependencyGraphService();
-  const service = new IssueService(prisma as never, projects as never, judges as never, dependencyGraph);
+  const service = new IssueService(prisma as never, projects as never, judges as never, decisions as never, dependencyGraph);
 
   beforeEach(() => {
     jest.clearAllMocks();

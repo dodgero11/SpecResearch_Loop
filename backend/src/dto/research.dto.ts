@@ -22,4 +22,8 @@ export class ResolveIssueDto {
 export class SelectDirectionDto {
   @IsIn(['A', 'B', 'C', 'D'])
   letter!: string;
+
+  @IsOptional()
+  @IsString()
+  customDirection?: string;
 }

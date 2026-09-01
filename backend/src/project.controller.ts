@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
 import { ProjectService } from './project.service';
 import { RecomputeService } from './recompute.service';
 import { CreateProjectDto, CreateRelatedWorkDto, CreateSpecDto, RecomputeDto, UpdateNodeDto } from './dto/project.dto';
@@ -61,6 +61,11 @@ export class ProjectController {
       },
       body.idempotencyKey,
     ).then(toSpecResponse);
+  }
+
+  @Delete(':projectId/related-works/:workId')
+  removeRelatedWork(@Param('projectId') projectId: string, @Param('workId') workId: string) {
+    return this.projects.removeRelatedWork(projectId, workId).then(toSpecResponse);
   }
 
   @Get(':projectId/invalidations')

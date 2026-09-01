@@ -1,5 +1,5 @@
 import { Body, Controller, Param, Post, Put } from '@nestjs/common';
-import { ClaimEvidenceDto, ConfirmPlanDto, CreateContributionDto, FeasibilityDto } from './dto/experiment.dto';
+import { ClaimEvidenceDto, ConfirmPlanDto, CreateContributionDto, FeasibilityDto, UpdateContributionDto } from './dto/experiment.dto';
 import { ExperimentService } from './experiment.service';
 
 @Controller('projects/:projectId')
@@ -14,6 +14,11 @@ export class ExperimentController {
   @Post('contributions')
   addContribution(@Param('projectId') projectId: string, @Body() body: CreateContributionDto) {
     return this.experiments.addContribution(projectId, body.label);
+  }
+
+  @Put('contributions/:id')
+  updateContribution(@Param('projectId') projectId: string, @Param('id') id: string, @Body() body: UpdateContributionDto) {
+    return this.experiments.updateContribution(projectId, id, body.label);
   }
 
   @Put('contributions/:id/claim-evidence')

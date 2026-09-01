@@ -12,9 +12,10 @@ describe('ResearchService', () => {
     createSpec: jest.fn(),
   };
   const cards = { update: jest.fn() };
+  const decisions = { record: jest.fn() };
   const dependencyGraph = new DependencyGraphService();
   const ai = { relatedWorks: jest.fn(), gapAnalysis: jest.fn(), conflicts: jest.fn() };
-  const service = new ResearchService(prisma as never, projects as never, cards as never, dependencyGraph, ai as never);
+  const service = new ResearchService(prisma as never, projects as never, cards as never, decisions as never, dependencyGraph, ai as never);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -142,6 +143,28 @@ describe('ResearchService', () => {
       }),
     );
     expect(result.selected).toBe('B');
+  });
+
+  it('selectDirection with Other (D) persists the custom text as the direction label', async () => {
+    projects.latestSpec.mockResolvedValue({
+      id: 'spec-1',
+      version: 1,
+      data: { gapAnalysis: { directions: [{ letter: 'D', label: 'Kết hợp' }] } },
+    });
+    projects.createSpec.mockResolvedValue({});
+
+    const result = await service.selectDirection('project-1', 'D', 'Hướng tự chọn của tôi');
+
+    expect(projects.createSpec).toHaveBeenCalledWith(
+      'project-1',
+      expect.objectContaining({
+        gapAnalysis: expect.objectContaining({
+          directions: [{ letter: 'D', label: 'Hướng tự chọn của tôi', selected: true }],
+        }),
+      }),
+    );
+    expect(decisions.record).toHaveBeenCalledWith('project-1', 'ACCEPT', 'direction', { letter: 'D', customDirection: 'Hướng tự chọn của tôi' });
+    expect(result.selected).toBe('D');
   });
 
   it('resolveConflict choice A narrows the claim status to PROPOSED', async () => {

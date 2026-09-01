@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { SpecCardType } from '@prisma/client';
+import { DecisionService } from './decision.service';
 import { AI_GATEWAY, AiGateway } from './integrations/ai-gateway.port';
 import { PrismaService } from './prisma.service';
 import { ProjectService, SpecData } from './project.service';
@@ -35,6 +36,7 @@ export class ExperimentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly projects: ProjectService,
+    private readonly decisions: DecisionService,
     @Inject(AI_GATEWAY) private readonly ai: AiGateway,
   ) {}
 
@@ -45,9 +47,12 @@ export class ExperimentService {
     const cards = await this.prisma.specCard.findMany({ where: { projectId, specIterationId: spec.id } });
     const problem = cards.find((card) => card.type === SpecCardType.PROBLEM)?.content ?? '';
     const gap = cards.find((card) => card.type === SpecCardType.GAP_CANDIDATE)?.content ?? '';
-    const gapAnalysis = (data.gapAnalysis ?? {}) as { directions?: { letter: string; selected?: boolean }[] };
-    const direction = gapAnalysis.directions?.find((item) => item.selected)?.letter;
-    const response = await this.ai.specExperiment(problem, gap, direction);
+    const gapAnalysis = (data.gapAnalysis ?? {}) as { directions?: { letter: string; label?: string; selected?: boolean }[] };
+    const direction = gapAnalysis.directions?.find((item) => item.selected);
+    // Send the direction's human-readable label (not the A–D letter) so the AI
+    // sees the actual content — especially the custom "Other" text the user typed.
+    const directionLabel = direction?.label ?? direction?.letter;
+    const response = await this.ai.specExperiment(problem, gap, directionLabel);
     const output = response.output;
     const contributions = Array.isArray(output.contributions) ? output.contributions.map(String) : [];
     const claims = Array.isArray(output.claims) ? output.claims : [];
@@ -72,6 +77,23 @@ export class ExperimentService {
     const nextPlan = { ...plan, contributions: [...plan.contributions, contribution] };
     await this.projects.createSpec(projectId, { ...data, experimentPlan: nextPlan });
     return { contribution };
+  }
+
+  /** Step 4b2: rename an existing contribution (frontend PUT). */
+  async updateContribution(projectId: string, contributionId: string, label: string) {
+    const spec = await this.projects.latestSpec(projectId);
+    const data = spec.data as SpecData;
+    const plan = this.readPlan(data);
+    const contribution = plan.contributions.find((item) => item.id === contributionId);
+    if (!contribution) throw new NotFoundException(`Contribution ${contributionId} was not found`);
+    const nextPlan = {
+      ...plan,
+      contributions: plan.contributions.map((item) =>
+        item.id === contributionId ? { ...item, label } : item,
+      ),
+    };
+    await this.projects.createSpec(projectId, { ...data, experimentPlan: nextPlan });
+    return { contribution: { ...contribution, label } };
   }
 
   /** Step 4c: save claim–evidence; generate an experiment only when none is linked yet. */
@@ -137,6 +159,7 @@ export class ExperimentService {
     const plan = this.readPlan(data);
     const nextPlan: ExperimentPlan = { ...plan, confirmed: true, selectedContributionIds };
     await this.projects.createSpec(projectId, { ...data, experimentPlan: nextPlan });
+    await this.decisions.record(projectId, 'ACCEPT', 'experiment-plan', { selectedContributionIds });
     return { saved: true };
   }
 

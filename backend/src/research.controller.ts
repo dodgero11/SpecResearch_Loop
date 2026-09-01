@@ -18,7 +18,7 @@ export class ResearchController {
 
   @Post('gap-analysis/select')
   selectDirection(@Param('projectId') projectId: string, @Body() body: SelectDirectionDto) {
-    return this.research.selectDirection(projectId, body.letter);
+    return this.research.selectDirection(projectId, body.letter, body.customDirection);
   }
 
   @Post('conflicts/check')
