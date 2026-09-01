@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { DEFAULT_AI_SERVICE_TIMEOUT_MS } from '../config';
 import { AiGateway, AiGatewayResponse } from './ai-gateway.port';
 import { LocalAiGateway } from './local-ai-gateway.adapter';
@@ -8,6 +9,8 @@ import { LocalAiGateway } from './local-ai-gateway.adapter';
  * `HttpLlmAdapter`, but for the non-judge endpoints.
  */
 export class HttpAiGateway implements AiGateway {
+  private readonly logger = new Logger(HttpAiGateway.name);
+
   constructor(
     private readonly baseUrl: string,
     private readonly timeoutMs: number,
@@ -51,6 +54,8 @@ export class HttpAiGateway implements AiGateway {
 
   private async call(path: string, body: Record<string, unknown>): Promise<AiGatewayResponse> {
     const url = `${this.baseUrl.replace(/\/+$/, '')}${path}`;
+    const startedAt = Date.now();
+    this.logger.log(`→ AI call ${path} (${url})`);
     let response: Response;
     try {
       response = await fetch(url, {
@@ -60,20 +65,26 @@ export class HttpAiGateway implements AiGateway {
         signal: AbortSignal.timeout(this.timeoutMs),
       });
     } catch (error) {
-      throw new Error(`AI service request to ${url} failed: ${this.describe(error)}`);
+      const detail = this.describe(error);
+      this.logger.error(`✗ AI call ${path} failed after ${Date.now() - startedAt}ms: ${detail}`);
+      throw new Error(`AI service request to ${url} failed: ${detail}`);
     }
 
     if (!response.ok) {
       const responseBody = (await response.text().catch(() => '')).slice(0, 500);
+      this.logger.error(`✗ AI call ${path} responded ${response.status} ${response.statusText} after ${Date.now() - startedAt}ms${responseBody ? `: ${responseBody}` : ''}`);
       throw new Error(`AI service ${url} responded ${response.status} ${response.statusText}${responseBody ? `: ${responseBody}` : ''}`);
     }
 
     const payload: unknown = await response.json().catch(() => {
+      this.logger.error(`✗ AI call ${path} returned a non-JSON response after ${Date.now() - startedAt}ms`);
       throw new Error(`AI service ${url} returned a non-JSON response`);
     });
     if (typeof payload !== 'object' || payload === null) {
+      this.logger.error(`✗ AI call ${path} returned an unexpected response payload after ${Date.now() - startedAt}ms`);
       throw new Error(`AI service ${url} returned an unexpected response payload`);
     }
+    this.logger.log(`✓ AI call ${path} succeeded in ${Date.now() - startedAt}ms`);
     return { output: payload as Record<string, unknown> };
   }
 
