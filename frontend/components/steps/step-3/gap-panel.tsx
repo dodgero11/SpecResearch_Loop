@@ -1,61 +1,50 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { CircleHelp, Lightbulb } from 'lucide-react'
-import { BASE_GAP_DIRECTIONS, GAP_DIRECTIONS, type RelatedWork } from './data'
+import { useState } from 'react'
+import { AlertTriangle, Check, CircleHelp, Lightbulb, Loader2 } from 'lucide-react'
+import type { GapAnalysisResult } from './data'
+
+const OTHER_LETTER = 'D'
 
 type GapPanelProps = {
-  results: RelatedWork[]
-  onSelectionChange: (hasSelection: boolean) => void
+  gapAnalysis: GapAnalysisResult | null
+  onSelectDirection: (letter: string, customDirection?: string) => Promise<void>
 }
 
-type GapAnalysis = {
-  whatWasDone: string
-  limitation: string
-  whyItMatters: string
-  testableWith: string
-}
-
-function buildGapAnalysis(results: RelatedWork[]): GapAnalysis | null {
-  if (results.length === 0) return null
-  const names = results.map((work) => work.name).join(', ')
-  const feedbackTypes = Array.from(new Set(results.map((work) => work.feedbackType.toLowerCase())))
-  const gaps = Array.from(new Set(results.map((work) => work.missingGap.toLowerCase())))
-  return {
-    whatWasDone: `${names} đã tối ưu prompt bằng ${feedbackTypes.join(' hoặc ')}.`,
-    limitation: `Vẫn còn hạn chế: ${gaps.join('; ')}.`,
-    whyItMatters:
-      'Vì các phương pháp trên đo chất lượng ở mức tổng thể, không tách theo từng claim, nên khó xác định chính xác phần nào của output đang thiếu bằng chứng — làm giảm độ tin cậy khi áp dụng cho tác vụ cần độ chính xác cao.',
-    testableWith: `So sánh baseline hiện có (${feedbackTypes.join(', ')}) với phương pháp claim-level feedback trên cùng tập dữ liệu, đo tỉ lệ unsupported claim.`,
-  }
-}
-
-export function GapPanel({ results, onSelectionChange }: GapPanelProps) {
-  const [selectedLetter, setSelectedLetter] = useState('')
-  const [mainDirection, setMainDirection] = useState<string | null>(null)
-  const [secondaryDirections, setSecondaryDirections] = useState<string[]>([])
+export function GapPanel({ gapAnalysis, onSelectDirection }: GapPanelProps) {
+  const [selecting, setSelecting] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [showOtherInput, setShowOtherInput] = useState(false)
   const [customDirection, setCustomDirection] = useState('')
 
-  const isCombine = selectedLetter === 'D'
-  const isOther = selectedLetter === 'E'
-  const hasEvidence = results.length > 0
-  const gapAnalysis = buildGapAnalysis(results)
+  const otherDirection = gapAnalysis?.directions.find((d) => d.letter === OTHER_LETTER)
 
-  useEffect(() => {
-    let hasSelection = false
-    if (selectedLetter === 'A' || selectedLetter === 'B' || selectedLetter === 'C') hasSelection = true
-    else if (selectedLetter === 'D') hasSelection = mainDirection !== null
-    else if (selectedLetter === 'E') hasSelection = customDirection.trim().length > 0
-    onSelectionChange(hasSelection)
-  }, [selectedLetter, mainDirection, customDirection, onSelectionChange])
-
-  function pickMain(letter: string) {
-    setMainDirection(letter)
-    setSecondaryDirections((prev) => prev.filter((item) => item !== letter))
+  async function handlePick(letter: string) {
+    setShowOtherInput(false) // picking a real direction cancels any half-typed "Other" entry
+    setSelecting(letter)
+    setError(null)
+    try {
+      await onSelectDirection(letter)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Chọn hướng thất bại, thử lại.')
+    } finally {
+      setSelecting(null)
+    }
   }
 
-  function toggleSecondary(letter: string) {
-    setSecondaryDirections((prev) => (prev.includes(letter) ? prev.filter((item) => item !== letter) : [...prev, letter]))
+  async function handleConfirmOther() {
+    const trimmed = customDirection.trim()
+    if (!trimmed) return
+    setSelecting(OTHER_LETTER)
+    setError(null)
+    try {
+      await onSelectDirection(OTHER_LETTER, trimmed)
+      setShowOtherInput(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Chọn hướng thất bại, thử lại.')
+    } finally {
+      setSelecting(null)
+    }
   }
 
   return (
@@ -86,75 +75,72 @@ export function GapPanel({ results, onSelectionChange }: GapPanelProps) {
           Bạn muốn tập trung vào hướng nào?
         </h2>
 
-        {!hasEvidence ? (
+        {!gapAnalysis || gapAnalysis.directions.length === 0 ? (
           <p className="direction-locked">
             Cần có ít nhất 1 nghiên cứu liên quan trong bảng đối sánh mới đủ căn cứ để chọn hướng tập trung.
           </p>
         ) : (
           <>
             <div className="direction-options">
-              {GAP_DIRECTIONS.map((direction) => (
-                <button
-                  key={direction.letter}
-                  type="button"
-                  className={selectedLetter === direction.letter ? 'direction-option selected' : 'direction-option'}
-                  onClick={() => setSelectedLetter(direction.letter)}
-                >
-                  {direction.letter}. {direction.label}
-                </button>
-              ))}
+              {gapAnalysis.directions
+                .filter((direction) => direction.letter !== OTHER_LETTER)
+                .map((direction) => (
+                  <button
+                    key={direction.letter}
+                    type="button"
+                    className={direction.selected ? 'direction-option selected' : 'direction-option'}
+                    disabled={selecting !== null}
+                    title={direction.description}
+                    onClick={() => handlePick(direction.letter)}
+                  >
+                    {selecting === direction.letter ? <Loader2 className="spin-icon" size={14} /> : null}
+                    {direction.letter}. {direction.label}
+                  </button>
+                ))}
+              <button
+                type="button"
+                className={
+                  otherDirection?.selected
+                    ? 'direction-option selected'
+                    : showOtherInput
+                      ? 'direction-option is-editing'
+                      : 'direction-option'
+                }
+                disabled={selecting !== null}
+                onClick={() => setShowOtherInput((value) => !value)}
+              >
+                {OTHER_LETTER}. Other
+              </button>
             </div>
 
-            {isCombine && (
+            {(showOtherInput || otherDirection?.selected) && (
               <div className="combine-picker">
-                <p className="combine-label">Chọn contribution chính:</p>
-                <div className="direction-options small">
-                  {BASE_GAP_DIRECTIONS.map((direction) => (
-                    <button
-                      key={direction.letter}
-                      type="button"
-                      className={mainDirection === direction.letter ? 'direction-option selected' : 'direction-option'}
-                      onClick={() => pickMain(direction.letter)}
-                    >
-                      {direction.letter}. {direction.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="combine-label">Contribution phụ (có thể chọn nhiều):</p>
-                <div className="direction-options small">
-                  {BASE_GAP_DIRECTIONS.filter((direction) => direction.letter !== mainDirection).map((direction) => (
-                    <button
-                      key={direction.letter}
-                      type="button"
-                      className={
-                        secondaryDirections.includes(direction.letter) ? 'direction-option selected' : 'direction-option'
-                      }
-                      onClick={() => toggleSecondary(direction.letter)}
-                    >
-                      {direction.letter}. {direction.label}
-                    </button>
-                  ))}
-                </div>
+                <input
+                  type="text"
+                  className="direction-other-input"
+                  placeholder="Mô tả hướng bạn muốn tập trung..."
+                  value={otherDirection?.selected && !showOtherInput ? otherDirection.label : customDirection}
+                  disabled={otherDirection?.selected && !showOtherInput}
+                  onChange={(e) => setCustomDirection(e.target.value)}
+                  aria-label="Hướng tự chọn"
+                />
+                {(!otherDirection?.selected || showOtherInput) && (
+                  <button type="button" className="direction-other-confirm" disabled={selecting !== null} onClick={handleConfirmOther}>
+                    {selecting === OTHER_LETTER ? <Loader2 className="spin-icon" size={13} /> : <Check size={13} />}
+                    Xác nhận hướng tự chọn
+                  </button>
+                )}
               </div>
-            )}
-
-            {isOther && (
-              <input
-                type="text"
-                className="direction-other-input"
-                placeholder="Mô tả hướng bạn muốn tập trung..."
-                value={customDirection}
-                onChange={(e) => setCustomDirection(e.target.value)}
-                aria-label="Hướng tự chọn"
-              />
             )}
           </>
         )}
 
-        <p className="gap-example">
-          <Lightbulb size={17} />
-          Ví dụ: vừa cải tiến prompt, vừa thêm verifier và bước xác nhận người dùng.
-        </p>
+        {error && (
+          <p className="lock-note" role="alert">
+            <AlertTriangle size={16} style={{ display: 'inline', marginRight: 4 }} />
+            {error}
+          </p>
+        )}
       </div>
     </section>
   )

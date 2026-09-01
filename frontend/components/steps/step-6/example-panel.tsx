@@ -1,7 +1,11 @@
 import { BookOpen } from 'lucide-react'
-import { BEFORE_AFTER_EXAMPLE } from './data'
 
-export function ExamplePanel() {
+type ExamplePanelProps = {
+  before: string
+  after: string
+}
+
+export function ExamplePanel({ before, after }: ExamplePanelProps) {
   return (
     <div className="mini-panel example-panel">
       <h2 className="final-panel-title blue-text">
@@ -10,11 +14,11 @@ export function ExamplePanel() {
       </h2>
       <div className="example-box">
         <b>Trước</b>
-        <span>{BEFORE_AFTER_EXAMPLE.before}</span>
+        <span>{before || '(chưa có ý tưởng ban đầu)'}</span>
       </div>
       <div className="example-box after">
         <b>Sau</b>
-        <span>{BEFORE_AFTER_EXAMPLE.after}</span>
+        <span>{after || '(chưa có contribution nào được chọn)'}</span>
       </div>
     </div>
   )

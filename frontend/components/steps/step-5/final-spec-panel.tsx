@@ -1,16 +1,18 @@
 import { CheckCircle2 } from 'lucide-react'
-import { JUDGE_ISSUES } from './data'
+import type { JudgeIssue } from './data'
 
 type FinalSpecPanelProps = {
-  resolvedTitles: string[]
+  issues: JudgeIssue[]
+  resolvedIds: string[]
   confirmed: boolean
   onConfirm: () => void
 }
 
-export function FinalSpecPanel({ resolvedTitles, confirmed, onConfirm }: FinalSpecPanelProps) {
-  const total = JUDGE_ISSUES.length
-  const resolvedCount = resolvedTitles.length
+export function FinalSpecPanel({ issues, resolvedIds, confirmed, onConfirm }: FinalSpecPanelProps) {
+  const total = issues.length
+  const resolvedCount = resolvedIds.length
   const allResolved = resolvedCount === total
+  const resolvedIssues = issues.filter((issue) => resolvedIds.includes(issue.id))
 
   return (
     <div className="mini-panel final-spec">
@@ -21,12 +23,14 @@ export function FinalSpecPanel({ resolvedTitles, confirmed, onConfirm }: FinalSp
       <p className="final-spec-progress">
         Đã xử lý {resolvedCount}/{total} issue
       </p>
-      {resolvedTitles.length === 0 ? (
-        <p className="final-spec-empty">Chưa xử lý issue nào — chọn hướng xử lý ở khung bên trên rồi bấm xác nhận.</p>
+      {resolvedIssues.length === 0 ? (
+        <p className="final-spec-empty">
+          {total === 0 ? 'Chưa có issue nào — có thể xác nhận spec cuối ngay.' : 'Chưa xử lý issue nào — chọn hướng xử lý ở khung bên trên rồi bấm xác nhận.'}
+        </p>
       ) : (
         <ul>
-          {resolvedTitles.map((title) => (
-            <li key={title}>{title}</li>
+          {resolvedIssues.map((issue) => (
+            <li key={issue.id}>{issue.title}</li>
           ))}
         </ul>
       )}

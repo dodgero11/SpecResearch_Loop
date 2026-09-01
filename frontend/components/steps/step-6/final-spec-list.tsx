@@ -1,7 +1,11 @@
 import { CheckCircle2, FileText, Target } from 'lucide-react'
-import { SPEC_CHECKLIST, SPEC_GOAL } from './data'
+import { SPEC_CHECKLIST } from './data'
 
-export function FinalSpecList() {
+type FinalSpecListProps = {
+  goal: string
+}
+
+export function FinalSpecList({ goal }: FinalSpecListProps) {
   return (
     <section className="mini-panel spec-document">
       <h2 className="final-panel-title">
@@ -20,7 +24,7 @@ export function FinalSpecList() {
       </div>
       <div className="final-focus">
         <Target size={28} />
-        <p>{SPEC_GOAL}</p>
+        <p>{goal || 'Chưa có contribution nào được chọn ở Bước 4.'}</p>
       </div>
     </section>
   )

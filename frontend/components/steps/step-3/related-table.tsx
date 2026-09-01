@@ -1,23 +1,29 @@
 'use client'
 
 import { useState } from 'react'
-import { FileText, Loader2, Plus } from 'lucide-react'
+import { FileText, Loader2, Plus, Trash2 } from 'lucide-react'
 import type { RelatedWork } from './data'
-import { AddWorkForm } from './add-work-form'
+import { AddWorkForm, type NewWorkInput } from './add-work-form'
 
 type RelatedTableProps = {
   results: RelatedWork[]
   searching: boolean
   hasSearched: boolean
-  onAddWork: (work: RelatedWork) => void
+  onAddWork: (work: NewWorkInput) => Promise<void>
+  onRemoveWork: (workId: string) => Promise<void>
 }
 
-export function RelatedTable({ results, searching, hasSearched, onAddWork }: RelatedTableProps) {
+export function RelatedTable({ results, searching, hasSearched, onAddWork, onRemoveWork }: RelatedTableProps) {
   const [showAddForm, setShowAddForm] = useState(false)
+  const [removingId, setRemovingId] = useState<string | null>(null)
 
-  function handleAdd(work: RelatedWork) {
-    onAddWork(work)
-    setShowAddForm(false)
+  async function handleRemove(workId: string) {
+    setRemovingId(workId)
+    try {
+      await onRemoveWork(workId)
+    } finally {
+      setRemovingId(null)
+    }
   }
 
   return (
@@ -33,7 +39,15 @@ export function RelatedTable({ results, searching, hasSearched, onAddWork }: Rel
         </button>
       </div>
 
-      {showAddForm && <AddWorkForm onSubmit={handleAdd} onCancel={() => setShowAddForm(false)} />}
+      {showAddForm && (
+        <AddWorkForm
+          onSubmit={async (work) => {
+            await onAddWork(work)
+            setShowAddForm(false)
+          }}
+          onCancel={() => setShowAddForm(false)}
+        />
+      )}
 
       {searching ? (
         <div className="table-loading">
@@ -58,7 +72,7 @@ export function RelatedTable({ results, searching, hasSearched, onAddWork }: Rel
             </thead>
             <tbody>
               {results.map((work) => (
-                <tr key={work.name}>
+                <tr key={work.id}>
                   <td>
                     <strong>{work.name}</strong>
                     <small>({work.year})</small>
@@ -67,15 +81,26 @@ export function RelatedTable({ results, searching, hasSearched, onAddWork }: Rel
                   <td>{work.feedbackType}</td>
                   <td>{work.missingGap}</td>
                   <td>
-                    <a
-                      href={work.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="source-button"
-                      aria-label={`Mở nguồn ${work.name}`}
-                    >
-                      <FileText size={15} />
-                    </a>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <a
+                        href={work.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="source-button"
+                        aria-label={`Mở nguồn ${work.name}`}
+                      >
+                        <FileText size={15} />
+                      </a>
+                      <button
+                        type="button"
+                        className="source-button"
+                        aria-label={`Xóa nghiên cứu ${work.name}`}
+                        disabled={removingId === work.id}
+                        onClick={() => handleRemove(work.id)}
+                      >
+                        {removingId === work.id ? <Loader2 className="spin-icon" size={15} /> : <Trash2 size={15} />}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

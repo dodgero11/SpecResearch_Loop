@@ -8,9 +8,10 @@ type KeywordPanelProps = {
   searching: boolean
   onSearch: (keywords: string[]) => void
   onRemoveKeyword: (keyword: string) => void
+  onClearAll: () => void
 }
 
-export function KeywordPanel({ keywords, searching, onSearch, onRemoveKeyword }: KeywordPanelProps) {
+export function KeywordPanel({ keywords, searching, onSearch, onRemoveKeyword, onClearAll }: KeywordPanelProps) {
   const [query, setQuery] = useState('')
 
   function addToQuery(keyword: string) {
@@ -70,6 +71,11 @@ export function KeywordPanel({ keywords, searching, onSearch, onRemoveKeyword }:
           </span>
         ))}
       </div>
+      {keywords.length > 0 && (
+        <button type="button" className="keyword-clear-all" onClick={onClearAll}>
+          Xóa bộ lọc — xem tất cả
+        </button>
+      )}
     </div>
   )
 }

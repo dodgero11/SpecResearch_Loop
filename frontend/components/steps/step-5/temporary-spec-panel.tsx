@@ -2,10 +2,14 @@
 
 import { useState } from 'react'
 import { Eye, FileText } from 'lucide-react'
-import { SPEC_ITEMS } from './data'
+import type { SpecItem } from './data'
 import { SpecDetailModal } from './spec-detail-modal'
 
-export function TemporarySpecPanel() {
+type TemporarySpecPanelProps = {
+  items: SpecItem[]
+}
+
+export function TemporarySpecPanel({ items }: TemporarySpecPanelProps) {
   const [showDetail, setShowDetail] = useState(false)
 
   return (
@@ -15,7 +19,7 @@ export function TemporarySpecPanel() {
         Spec tạm thời
       </h2>
       <div className="spec-items">
-        {SPEC_ITEMS.map((item, index) => (
+        {items.map((item, index) => (
           <button type="button" key={item.title} onClick={() => setShowDetail(true)}>
             <span>{index + 1}</span>
             <strong>{item.title}</strong>
@@ -27,7 +31,7 @@ export function TemporarySpecPanel() {
         <Eye size={16} />
         Xem chi tiết Spec tạm thời
       </button>
-      {showDetail && <SpecDetailModal onClose={() => setShowDetail(false)} />}
+      {showDetail && <SpecDetailModal items={items} onClose={() => setShowDetail(false)} />}
     </section>
   )
 }

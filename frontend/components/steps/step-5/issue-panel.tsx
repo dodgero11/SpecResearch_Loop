@@ -2,33 +2,34 @@
 
 import { useState } from 'react'
 import { AlertTriangle, ArrowRight, Check, ChevronDown, ChevronUp } from 'lucide-react'
-import { JUDGE_ISSUES } from './data'
+import type { JudgeIssue } from './data'
 
 type IssuePanelProps = {
-  activeIssueTitle: string
-  resolvedTitles: string[]
-  onSelectIssue: (title: string) => void
+  issues: JudgeIssue[]
+  activeIssueId: string | null
+  onSelectIssue: (id: string) => void
 }
 
-export function IssuePanel({ activeIssueTitle, resolvedTitles, onSelectIssue }: IssuePanelProps) {
-  const [expandedTitles, setExpandedTitles] = useState<string[]>([])
+export function IssuePanel({ issues, activeIssueId, onSelectIssue }: IssuePanelProps) {
+  const [expandedIds, setExpandedIds] = useState<string[]>([])
 
-  function toggle(title: string) {
-    setExpandedTitles((prev) => (prev.includes(title) ? prev.filter((item) => item !== title) : [...prev, title]))
+  function toggle(id: string) {
+    setExpandedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]))
   }
 
   return (
     <div className="mini-panel issue-panel">
       <h2 className="mini-title purple-text">
         <AlertTriangle size={18} />
-        Tổng hợp issue <span className="issue-count">{JUDGE_ISSUES.length} issue</span>
+        Tổng hợp issue <span className="issue-count">{issues.length} issue</span>
       </h2>
-      {JUDGE_ISSUES.map((issue) => {
-        const expanded = expandedTitles.includes(issue.title)
-        const isActive = issue.title === activeIssueTitle
-        const isResolved = resolvedTitles.includes(issue.title)
+      {issues.length === 0 && <p className="claim-empty">Chưa có issue nào — chạy đánh giá Judge ở khung bên trên trước.</p>}
+      {issues.map((issue) => {
+        const expanded = expandedIds.includes(issue.id)
+        const isActive = issue.id === activeIssueId
+        const isResolved = issue.status === 'RESOLVED'
         return (
-          <div className={isActive ? 'issue-row is-active' : 'issue-row'} key={issue.title}>
+          <div className={isActive ? 'issue-row is-active' : 'issue-row'} key={issue.id}>
             <div className="issue-row-main">
               <b className={`severity ${issue.severity.toLowerCase()}`}>{issue.severity}</b>
               <strong>{issue.title}</strong>
@@ -36,7 +37,7 @@ export function IssuePanel({ activeIssueTitle, resolvedTitles, onSelectIssue }: 
               <em>{issue.flaggedBy}</em>
             </div>
             <div className="issue-row-footer">
-              <button type="button" className="issue-suggestion-toggle" onClick={() => toggle(issue.title)}>
+              <button type="button" className="issue-suggestion-toggle" onClick={() => toggle(issue.id)}>
                 {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                 {expanded ? 'Thu gọn' : 'Xem đề xuất'}
               </button>
@@ -50,7 +51,7 @@ export function IssuePanel({ activeIssueTitle, resolvedTitles, onSelectIssue }: 
                 {isActive && !isResolved ? (
                   <span className="issue-active-badge">Đang xử lý</span>
                 ) : (
-                  <button type="button" className="issue-select-btn" onClick={() => onSelectIssue(issue.title)}>
+                  <button type="button" className="issue-select-btn" onClick={() => onSelectIssue(issue.id)}>
                     {isResolved ? 'Xem lại' : 'Xử lý issue này'}
                     <ArrowRight size={12} />
                   </button>

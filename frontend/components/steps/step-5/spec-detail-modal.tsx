@@ -2,13 +2,14 @@
 
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
-import { SPEC_ITEMS } from './data'
+import type { SpecItem } from './data'
 
 type SpecDetailModalProps = {
+  items: SpecItem[]
   onClose: () => void
 }
 
-export function SpecDetailModal({ onClose }: SpecDetailModalProps) {
+export function SpecDetailModal({ items, onClose }: SpecDetailModalProps) {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
@@ -27,7 +28,7 @@ export function SpecDetailModal({ onClose }: SpecDetailModalProps) {
           </button>
         </div>
         <div className="modal-body">
-          {SPEC_ITEMS.map((item, index) => (
+          {items.map((item, index) => (
             <section className="modal-spec-section" key={item.title}>
               <h3>
                 <span>{index + 1}</span>

@@ -1,11 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, X } from 'lucide-react'
-import { PRIORITY_SOURCES, type RelatedWork, type SourceType } from './data'
+import { Check, Loader2, X } from 'lucide-react'
+import { PRIORITY_SOURCES, type SourceType } from './data'
+
+export type NewWorkInput = {
+  name: string
+  year: string
+  whatItDid: string
+  feedbackType: string
+  missingGap: string
+  url: string
+  sourceType: SourceType
+}
 
 type AddWorkFormProps = {
-  onSubmit: (work: RelatedWork) => void
+  onSubmit: (work: NewWorkInput) => Promise<void>
   onCancel: () => void
 }
 
@@ -17,18 +27,33 @@ export function AddWorkForm({ onSubmit, onCancel }: AddWorkFormProps) {
   const [missingGap, setMissingGap] = useState('')
   const [url, setUrl] = useState('')
   const [sourceType, setSourceType] = useState<SourceType>(PRIORITY_SOURCES[0].key)
+  const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!name.trim() || !whatItDid.trim()) return
-    onSubmit({
-      name: name.trim(),
-      year: year.trim() || '—',
-      whatItDid: whatItDid.trim(),
-      feedbackType: feedbackType.trim() || '—',
-      missingGap: missingGap.trim() || '—',
-      url: url.trim() || '#',
-      sourceType,
-    })
+    const trimmedUrl = url.trim()
+    if (trimmedUrl && !/^https?:\/\/.+/i.test(trimmedUrl)) {
+      setFormError('Link nguồn phải bắt đầu bằng http:// hoặc https:// (hoặc để trống nếu chưa có).')
+      return
+    }
+    setFormError(null)
+    setSubmitting(true)
+    try {
+      await onSubmit({
+        name: name.trim(),
+        year: year.trim(),
+        whatItDid: whatItDid.trim(),
+        feedbackType: feedbackType.trim(),
+        missingGap: missingGap.trim(),
+        url: url.trim(),
+        sourceType,
+      })
+    } catch {
+      // failed — keep the form's current input so the user doesn't lose what they typed
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -58,13 +83,14 @@ export function AddWorkForm({ onSubmit, onCancel }: AddWorkFormProps) {
         </select>
       </div>
       <input placeholder="Điểm còn thiếu" value={missingGap} onChange={(e) => setMissingGap(e.target.value)} />
-      <input placeholder="Link nguồn (URL)" value={url} onChange={(e) => setUrl(e.target.value)} />
+      <input placeholder="Link nguồn (https://...)" value={url} onChange={(e) => setUrl(e.target.value)} />
+      {formError && <p className="lock-note">{formError}</p>}
       <div className="add-work-actions">
-        <button type="button" className="confirm-action" onClick={handleSubmit}>
-          <Check size={14} />
-          Thêm
+        <button type="button" className="confirm-action" disabled={submitting} onClick={handleSubmit}>
+          {submitting ? <Loader2 className="spin-icon" size={14} /> : <Check size={14} />}
+          {submitting ? 'Đang thêm...' : 'Thêm'}
         </button>
-        <button type="button" className="edit-action" onClick={onCancel}>
+        <button type="button" className="edit-action" disabled={submitting} onClick={onCancel}>
           <X size={14} />
           Hủy
         </button>

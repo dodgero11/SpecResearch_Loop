@@ -2,41 +2,16 @@
 
 import { useState } from 'react'
 import { AlertTriangle, Cpu } from 'lucide-react'
-import { BASE_FEASIBILITY_CONFIG, type FieldRow } from './data'
+import type { Feasibility } from './data'
 
 type FeasibilityPanelProps = {
+  feasibility: Feasibility | null
   selectedCount: number
   totalCount: number
 }
 
-export function FeasibilityPanel({ selectedCount, totalCount }: FeasibilityPanelProps) {
+export function FeasibilityPanel({ feasibility, selectedCount, totalCount }: FeasibilityPanelProps) {
   const [acknowledged, setAcknowledged] = useState(false)
-
-  const ratio = totalCount === 0 ? 1 : Math.max(selectedCount, 1) / totalCount
-  const rounds = Math.max(3, Math.round(BASE_FEASIBILITY_CONFIG.rounds * ratio))
-  const candidates = Math.max(3, Math.round(BASE_FEASIBILITY_CONFIG.candidatesPerRound * ratio))
-  const vramGb = Math.max(12, Math.round(BASE_FEASIBILITY_CONFIG.vramGb * (0.7 + 0.3 * ratio)))
-  const hoursLow = Math.max(4, Math.round(BASE_FEASIBILITY_CONFIG.hoursLow * ratio))
-  const hoursHigh = Math.max(hoursLow + 2, Math.round(BASE_FEASIBILITY_CONFIG.hoursHigh * ratio))
-  const tokensLowM = Math.max(1, Math.round(BASE_FEASIBILITY_CONFIG.tokensLowM * ratio))
-  const tokensHighM = Math.max(tokensLowM + 1, Math.round(BASE_FEASIBILITY_CONFIG.tokensHighM * ratio))
-
-  const stats: FieldRow[] = [
-    { label: 'Model', value: BASE_FEASIBILITY_CONFIG.model },
-    { label: 'Seed prompts', value: String(BASE_FEASIBILITY_CONFIG.seedPrompts) },
-    { label: 'Candidates mỗi vòng', value: String(candidates) },
-    { label: 'Số vòng', value: String(rounds) },
-    { label: 'Dev set', value: `${BASE_FEASIBILITY_CONFIG.devSet} mẫu` },
-    { label: 'Val set', value: `${BASE_FEASIBILITY_CONFIG.valSet} mẫu` },
-    { label: 'Top-k đầy đủ', value: String(BASE_FEASIBILITY_CONFIG.topK) },
-  ]
-
-  const resources: FieldRow[] = [
-    { label: 'VRAM', value: `~ ${vramGb} GB` },
-    { label: 'Thời gian', value: `~ ${hoursLow}–${hoursHigh} giờ` },
-    { label: 'Token', value: `~ ${tokensLowM}–${tokensHighM} triệu` },
-    { label: 'Chi phí API', value: 'tùy chọn' },
-  ]
 
   return (
     <section className="mini-panel feasibility-panel">
@@ -47,25 +22,63 @@ export function FeasibilityPanel({ selectedCount, totalCount }: FeasibilityPanel
       <p className="feasibility-note">
         Ước tính dựa trên {selectedCount}/{totalCount} contribution đang giữ lại.
       </p>
-      <div className="feasibility-stats">
-        {stats.map((stat) => (
-          <div key={stat.label}>
-            <strong>{stat.label}</strong>
-            <span>{stat.value}</span>
+
+      {!feasibility ? (
+        <p className="claim-empty">Cần giữ lại ít nhất 1 contribution để ước tính tính khả thi.</p>
+      ) : (
+        <>
+          <div className="feasibility-stats">
+            <div>
+              <strong>Model</strong>
+              <span>{feasibility.model || '—'}</span>
+            </div>
+            <div>
+              <strong>Seed prompts</strong>
+              <span>{feasibility.seedPrompts}</span>
+            </div>
+            <div>
+              <strong>Candidates</strong>
+              <span>{feasibility.candidates}</span>
+            </div>
+            <div>
+              <strong>Số vòng</strong>
+              <span>{feasibility.rounds}</span>
+            </div>
           </div>
-        ))}
-      </div>
-      <div className="resource-list">
-        {resources.map((item) => (
-          <div key={item.label}>
-            <span>
-              <Cpu size={17} />
-              {item.label}
-            </span>
-            <strong>{item.value}</strong>
+          <div className="resource-list">
+            <div>
+              <span>
+                <Cpu size={17} />
+                VRAM
+              </span>
+              <strong>~ {feasibility.vram} GB</strong>
+            </div>
+            <div>
+              <span>
+                <Cpu size={17} />
+                Thời gian
+              </span>
+              <strong>~ {feasibility.hours.toFixed(1)} giờ</strong>
+            </div>
+            <div>
+              <span>
+                <Cpu size={17} />
+                Token
+              </span>
+              <strong>~ {(feasibility.tokens / 1_000_000).toFixed(1)} triệu</strong>
+            </div>
+            <div>
+              <span>
+                <Cpu size={17} />
+                Khả thi?
+              </span>
+              <strong>{feasibility.isFeasible ? 'Có' : 'Không'}</strong>
+            </div>
           </div>
-        ))}
-      </div>
+          {feasibility.explanation && <p className="conflict-note">{feasibility.explanation}</p>}
+        </>
+      )}
+
       <button type="button" className="warning-box" onClick={() => setAcknowledged(!acknowledged)}>
         <AlertTriangle size={23} />
         <span>

@@ -17,6 +17,8 @@ const FIELDS: { key: keyof ClaimEvidence; label: string }[] = [
   { key: 'rejectionCondition', label: 'Điều kiện bác bỏ' },
 ]
 
+const EMPTY_CLAIM_EVIDENCE: ClaimEvidence = { claim: '', baseline: '', metric: '', evidence: '', rejectionCondition: '' }
+
 export function ClaimPanel({ contributions, onEditClaimEvidence }: ClaimPanelProps) {
   const [activeIndex, setActiveIndex] = useState(0)
   const [editing, setEditing] = useState(false)
@@ -30,11 +32,12 @@ export function ClaimPanel({ contributions, onEditClaimEvidence }: ClaimPanelPro
   }, [contributions.length, activeIndex])
 
   const current = contributions[activeIndex]
-  const isEmpty = current ? FIELDS.every((field) => current.claimEvidence[field.key].trim() === '') : false
+  const currentClaimEvidence = current?.claimEvidence ?? EMPTY_CLAIM_EVIDENCE
+  const isEmpty = current ? FIELDS.every((field) => currentClaimEvidence[field.key].trim() === '') : false
 
   function startEdit() {
     if (!current) return
-    setDraft(current.claimEvidence)
+    setDraft(currentClaimEvidence)
     setEditing(true)
   }
 
@@ -119,7 +122,7 @@ export function ClaimPanel({ contributions, onEditClaimEvidence }: ClaimPanelPro
                 {FIELDS.map((field) => (
                   <div key={field.key}>
                     <strong>{field.label}</strong>
-                    <span>{current.claimEvidence[field.key]}</span>
+                    <span>{currentClaimEvidence[field.key]}</span>
                   </div>
                 ))}
               </div>

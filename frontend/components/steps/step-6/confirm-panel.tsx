@@ -2,16 +2,36 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { CheckCircle2, FileDown, FileText, Pencil } from 'lucide-react'
+import { CheckCircle2, FileDown, FileText, Loader2, Pencil } from 'lucide-react'
 
 type ConfirmPanelProps = {
   specConfirmed: boolean
-  onConfirm: () => void
+  onConfirm: () => Promise<void>
+  onExportPdf: () => Promise<void>
+  onExportMarkdown: () => void
 }
 
-export function ConfirmPanel({ specConfirmed, onConfirm }: ConfirmPanelProps) {
-  const [pdfExported, setPdfExported] = useState(false)
-  const [markdownExported, setMarkdownExported] = useState(false)
+export function ConfirmPanel({ specConfirmed, onConfirm, onExportPdf, onExportMarkdown }: ConfirmPanelProps) {
+  const [confirming, setConfirming] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
+
+  async function handleConfirm() {
+    setConfirming(true)
+    try {
+      await onConfirm()
+    } finally {
+      setConfirming(false)
+    }
+  }
+
+  async function handleExportPdf() {
+    setExportingPdf(true)
+    try {
+      await onExportPdf()
+    } finally {
+      setExportingPdf(false)
+    }
+  }
 
   return (
     <div className="mini-panel final-confirm">
@@ -20,9 +40,9 @@ export function ConfirmPanel({ specConfirmed, onConfirm }: ConfirmPanelProps) {
         Xác nhận cuối cùng
       </h2>
       <div className="final-buttons">
-        <button type="button" className="confirm-action" disabled={specConfirmed} onClick={onConfirm}>
-          <CheckCircle2 size={16} />
-          {specConfirmed ? 'Đã xác nhận spec' : 'Xác nhận spec'}
+        <button type="button" className="confirm-action" disabled={specConfirmed || confirming} onClick={handleConfirm}>
+          {confirming ? <Loader2 className="spin-icon" size={16} /> : <CheckCircle2 size={16} />}
+          {specConfirmed ? 'Đã xác nhận spec' : confirming ? 'Đang xác nhận...' : 'Xác nhận spec'}
         </button>
         <Link href="/step-5" className="outline-action">
           <Pencil size={15} />
@@ -31,22 +51,22 @@ export function ConfirmPanel({ specConfirmed, onConfirm }: ConfirmPanelProps) {
         <button
           type="button"
           className="outline-action"
-          disabled={!specConfirmed}
+          disabled={!specConfirmed || exportingPdf}
           title={!specConfirmed ? 'Cần xác nhận spec trước khi xuất' : undefined}
-          onClick={() => setPdfExported(true)}
+          onClick={handleExportPdf}
         >
-          <FileText size={15} />
-          {pdfExported ? 'Đã xuất PDF' : 'Xuất PDF'}
+          {exportingPdf ? <Loader2 className="spin-icon" size={15} /> : <FileText size={15} />}
+          {exportingPdf ? 'Đang xuất...' : 'Xuất PDF'}
         </button>
         <button
           type="button"
           className="outline-action"
           disabled={!specConfirmed}
           title={!specConfirmed ? 'Cần xác nhận spec trước khi xuất' : undefined}
-          onClick={() => setMarkdownExported(true)}
+          onClick={onExportMarkdown}
         >
           <FileDown size={15} />
-          {markdownExported ? 'Đã xuất Markdown' : 'Xuất Markdown'}
+          Xuất Markdown
         </button>
       </div>
     </div>
