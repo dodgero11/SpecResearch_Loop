@@ -1,0 +1,228 @@
+{
+  "use_case_id": "UC-001",
+  "domain": "Prompt Engineering & Automated Optimization",
+  "project_title": "Claim-Guided Prompt Optimization Loop for Complex LLM Reasoning",
+  "raw_idea": "Tôi muốn xây dựng một hệ thống AI tự động tối ưu hóa prompt bằng cách tách nhỏ câu trả lời thành từng claim và tối ưu từng claim thay vì tính điểm chung trên cả bài.",
+  "round_1_clarification": {
+    "clarified_idea": "Hệ thống tối ưu hóa prompt tự động cho mô hình ngôn ngữ lớn dựa trên phản hồi mức tuyên bố khoa học (Claim-Level Feedback Loop), kết hợp kiểm định độc lập và khống chế tài nguyên trên GPU cá nhân (RTX 3090).",
+    "key_issues": [
+      "Phương pháp phân rã câu trả lời thành các claim nguyên tử (atomic claims)",
+      "Thiết lập baseline so sánh định lượng với OPRO và TextGrad",
+      "Giới hạn số lượt lặp (iterations) và chi phí token trên GPU 24GB"
+    ],
+    "confidence": 0.92,
+    "questions_and_answers": [
+      {
+        "question": "Mô hình LLM nào sẽ được chọn làm baseline chính cho nghiên cứu?",
+        "selected_option": "Llama-3-8B-Instruct",
+        "is_custom": false
+      },
+      {
+        "question": "Tác vụ chính cần đánh giá độ chính xác và hiệu năng là gì?",
+        "selected_option": "Complex Multi-hop Reasoning Benchmark",
+        "is_custom": false
+      },
+      {
+        "question": "Bản đặc tả cuối cùng sẽ được định hướng sử dụng cho mục đích nào?",
+        "selected_option": "Viết Research Proposal & Benchmark Report",
+        "is_custom": false
+      }
+    ],
+    "seed_cards": [
+      {
+        "type": "PROBLEM",
+        "content": "Các thuật toán tối ưu prompt hiện nay (OPRO, DSPy) tối ưu dựa trên điểm tổng quan (holistic score), dẫn đến việc không xác định được chính xác phần nào của prompt gây ra lỗi sai cục bộ.",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "RESEARCH_QUESTION",
+        "content": "Làm thế nào để sử dụng phản hồi ở cấp độ claim (Claim-Level Feedback) để hướng dẫn thuật toán tìm kiếm prompt hội tụ nhanh hơn và giảm thiểu hallucination?",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "GAP_CANDIDATE",
+        "content": "Chưa có framework tối ưu prompt nào tích hợp cơ chế tách claim và cập nhật gradient văn bản cục bộ chạy được trên 1x GPU 24GB VRAM.",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "CONTRIBUTION",
+        "content": "Đề xuất thuật toán Claim-Guided Search kết hợp Dependency Invalidation Graph giúp giảm 40% số vòng lặp tối ưu.",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "CLAIM",
+        "content": "Thuật toán tối ưu prompt theo claim đạt độ chính xác cao hơn 15% so với OPRO trên tập dữ liệu GSM8K và HotpotQA.",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "EVIDENCE",
+        "content": "Kết quả thực nghiệm trên benchmark HotpotQA và GSM8K với 500 mẫu kiểm thử đối sánh.",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "CONSTRAINT",
+        "content": "Môi trường thực thi giới hạn trong 1x NVIDIA RTX 3090 (24GB VRAM), tối đa 100 iterations.",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "OPEN_QUESTION",
+        "content": "Thuật toán có giữ nguyên hiệu năng khi áp dụng cho các bài toán sinh mã nguồn (Code Generation) không?",
+        "status": "PROPOSED"
+      }
+    ]
+  },
+  "round_2_related_works": {
+    "related_works": [
+      {
+        "paper_title": "OPRO: Optimization by PROmpting",
+        "authors": "Chengrun Yang, Xuezhi Wang, Yifeng Lu, Hanxiao Liu, Quoc V. Le, Denny Zhou, Xinyun Chen",
+        "year": 2023,
+        "what_they_did": "Sử dụng LLM làm optimizer để tự sinh và đánh giá prompt dựa trên điểm số tổng hợp của tập train.",
+        "feedback": "Phương pháp hiệu quả nhưng chi phí token cao và không chỉ rõ claim nào bị sai.",
+        "missing_points": "Thiếu cơ chế phân rã lỗi cục bộ (fine-grained attribution).",
+        "source_url": "https://arxiv.org/abs/2309.03409",
+        "source_type": "proceedings"
+      },
+      {
+        "paper_title": "PromptBreeder: Self-Referential Self-Improvement Via Prompt Evolution",
+        "authors": "Chrisantha Fernando et al.",
+        "year": 2023,
+        "what_they_did": "Ứng dụng giải thuật tiến hóa (Evolutionary Algorithm) để đột biến và lai ghép prompt.",
+        "feedback": "Không gian tìm kiếm quá rộng, tốn hàng trăm giờ GPU.",
+        "missing_points": "Không thể triển khai thực tế trên phần cứng máy trạm đơn GPU cá nhân.",
+        "source_url": "https://arxiv.org/abs/2309.16797",
+        "source_type": "peer-reviewed"
+      },
+      {
+        "paper_title": "TextGrad: Automatic Differentiation via Text",
+        "authors": "Mert Yuksekgonul, Federico Bianchi, Joseph Boen, Sheng Liu, Zhi Huang, Carlos Guestrin, James Zou",
+        "year": 2024,
+        "what_they_did": "Mô phỏng vi phân tự động (backpropagation) bằng cách truyền phản hồi ngôn ngữ tự nhiên từ loss về prompt.",
+        "feedback": "Khái niệm đột phá nhưng độ ổn định phụ thuộc vào chất lượng LLM evaluator.",
+        "missing_points": "Chưa có ràng buộc kiểm chứng bằng chứng (Evidence Verification) khách quan.",
+        "source_url": "https://arxiv.org/abs/2406.07496",
+        "source_type": "peer-reviewed"
+      },
+      {
+        "paper_title": "DSPy: Compiling Declarative Language Model Calls",
+        "authors": "Omar Khattab et al.",
+        "year": 2024,
+        "what_they_did": "Biên dịch và tối ưu hóa các pipeline LM có cấu trúc qua teleprompter và bộ tối ưu hóa BootstrapFewShot.",
+        "feedback": "Tối ưu tốt các pipeline cố định nhưng ít hỗ trợ cho phân tích phản biện đa thẩm phán.",
+        "missing_points": "Chưa có cơ chế Human-in-the-loop đa thẩm phán độc lập.",
+        "source_url": "https://arxiv.org/abs/2310.03714",
+        "source_type": "proceedings"
+      }
+    ],
+    "selected_gap_direction": {
+      "letter": "A",
+      "label": "Thuật toán tối ưu prompt dựa trên Claim-Level Feedback",
+      "description": "Phân rã chuỗi suy luận thành các claim nguyên tử và truyền ngược tín hiệu lỗi về từng thành phần prompt tương ứng."
+    }
+  },
+  "round_3_experiments_and_feasibility": {
+    "contributions": [
+      "Đề xuất kiến trúc Claim-Level Prompt Optimization (CLPO) phân rã suy luận và tối ưu có định hướng.",
+      "Xây dựng thuật toán Dependency Invalidation Graph giúp giảm 45% thời gian chạy lại trên GPU cá nhân."
+    ],
+    "claim_evidence_matrix": [
+      {
+        "claim": "CLPO đạt độ chính xác vượt trội hơn ít nhất 8% so với OPRO trên GSM8K.",
+        "baseline": "OPRO (Llama-3-8B) & DSPy MIPRO",
+        "metric": "Accuracy (%) và Token Consumption",
+        "evidence": "Thực nghiệm đối sánh 500 bài toán GSM8K với 5 random seeds.",
+        "rejection_condition": "Độ chính xác trung bình không cao hơn OPRO quá 2% hoặc tốn nhiều hơn 1.5x tokens."
+      },
+      {
+        "claim": "Thuật toán Dependency Invalidation giảm 40% thời gian recompute khi tinh chỉnh prompt.",
+        "baseline": "Full Recompute Strategy",
+        "metric": "Wall-clock Time (seconds) trên 1x RTX 3090",
+        "evidence": "Log thời gian thực thi trên GPU NVIDIA RTX 3090 24GB.",
+        "rejection_condition": "Thời gian tiết kiệm dưới 10%."
+      }
+    ],
+    "experiment_protocols": [
+      {
+        "name": "TN1: Baseline Comparison",
+        "protocol": "Chạy benchmark so sánh CLPO vs OPRO vs DSPy trên tập dữ liệu GSM8K và HotpotQA với cùng ngân sách 50 iterations.",
+        "expected_outcome": "CLPO đạt accuracy 78.4% so với 71.2% của OPRO."
+      },
+      {
+        "name": "TN2: Ablation Study - Claim Granularity",
+        "protocol": "Đánh giá hiệu năng khi thay đổi mức độ phân rã claim: sentence-level vs atomic claim vs holistic.",
+        "expected_outcome": "Atomic claim cho tốc độ hội tụ nhanh nhất và ít bị overfit nhất."
+      },
+      {
+        "name": "TN3: Resource & Feasibility Profiling",
+        "protocol": "Đo đạc VRAM tiêu thụ đỉnh, số token tiêu thụ trung bình và thời gian chạy trên 1x NVIDIA RTX 3090.",
+        "expected_outcome": "VRAM luôn duy trì dưới 18GB, thời gian hoàn thành dưới 45 phút."
+      }
+    ],
+    "feasibility_estimation": {
+      "model_name": "Llama-3-8B-Instruct",
+      "seed_prompts_count": 5,
+      "candidates_count": 4,
+      "vram_needed_gb": 16.2,
+      "tokens_estimated": 48000,
+      "gpu_time_hours": 0.65,
+      "is_feasible": true,
+      "explanation": "Mô hình Llama-3-8B chiếm khoảng 16.2GB VRAM khi chạy 4 candidates đồng thời, hoàn toàn nằm trong giới hạn 24GB của NVIDIA RTX 3090."
+    }
+  },
+  "round_4_judges_review": {
+    "spec_version_used": 1,
+    "status": "COMPLETED",
+    "judges": [
+      {
+        "type": "gap",
+        "verdict": "ACCEPT",
+        "issues": []
+      },
+      {
+        "type": "contribution",
+        "verdict": "REVIEW_REQUIRED",
+        "issues": [
+          {
+            "severity": "MAJOR",
+            "title": "Cần nêu rõ phạm vi bài toán",
+            "description": "Tuyên bố cải thiện áp dụng chung cho mọi bài toán reasoning là quá rộng.",
+            "suggestion": "Giới hạn phạm vi ở bài toán Math Reasoning và Multi-hop QA.",
+            "flagged_by": "contribution",
+            "choices": [
+              {
+                "letter": "A",
+                "label": "Giới hạn ở GSM8K và HotpotQA",
+                "understanding": "Ghi rõ trong đóng góp là áp dụng cho Math và Multi-hop QA."
+              },
+              {
+                "letter": "B",
+                "label": "Other",
+                "understanding": "Tự nhập phạm vi."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "experiment",
+        "verdict": "ACCEPT",
+        "issues": []
+      },
+      {
+        "type": "evidence",
+        "verdict": "ACCEPT",
+        "issues": []
+      },
+      {
+        "type": "conference-readiness",
+        "verdict": "ACCEPT",
+        "issues": []
+      }
+    ]
+  },
+  "round_5_final_spec_summary": {
+    "title": "Claim-Guided Prompt Optimization Loop for Complex LLM Reasoning",
+    "status": "CONFIRMED_BY_USER",
+    "export_formats": ["MARKDOWN", "JSON", "PDF"]
+  }
+}

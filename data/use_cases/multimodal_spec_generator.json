@@ -1,0 +1,208 @@
+{
+  "use_case_id": "UC-003",
+  "domain": "Multimodal AI & Architectural Specification Synthesis",
+  "project_title": "Multi-Modal Research Specification & Interactive Architecture Diagram Generation",
+  "raw_idea": "Tôi muốn phát triển hệ thống AI tự động sinh đặc tả kiến trúc phần mềm kèm sơ đồ Mermaid và giao diện trực quan từ yêu cầu đa phương thức (hình ảnh phác thảo + văn bản mô tả).",
+  "round_1_clarification": {
+    "clarified_idea": "Hệ thống Multi-Modal Spec Generator chuyển đổi bản vẽ phác thảo kiến trúc kết hợp văn bản mô tả thành bản đặc tả kỹ thuật chi tiết chuẩn IEEE, tự động sinh sơ đồ Mermaid hợp lệ và kiểm tra tính tương thích trên máy trạm đơn GPU.",
+    "key_issues": [
+      "Khả năng phân tích chính xác các ký hiệu trong sơ đồ phác thảo tay",
+      "Đảm bảo cú pháp Mermaid sinh ra không bị lỗi render",
+      "Đồng bộ hai chiều giữa tài liệu đặc tả và các thẻ thành phần kiến trúc"
+    ],
+    "confidence": 0.88,
+    "questions_and_answers": [
+      {
+        "question": "Loại định dạng sơ đồ nào cần ưu tiên sinh tự động?",
+        "selected_option": "Mermaid C4 Architecture & Sequence Diagrams",
+        "is_custom": false
+      },
+      {
+        "question": "Mô hình Vision-Language nào sẽ được chọn làm backbone?",
+        "selected_option": "LLaVA-NeXT-8B / Qwen2-VL-7B",
+        "is_custom": false
+      },
+      {
+        "question": "Mục tiêu đầu ra của bản đặc tả?",
+        "selected_option": "Production Architecture Spec (Markdown & Interactive Visualizer)",
+        "is_custom": false
+      }
+    ],
+    "seed_cards": [
+      {
+        "type": "PROBLEM",
+        "content": "Kỹ sư phần mềm mất nhiều thời gian chuyển đổi từ bản vẽ phác thảo trên bảng trắng sang bản đặc tả kỹ thuật chuẩn kèm sơ đồ kiến trúc chính xác.",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "RESEARCH_QUESTION",
+        "content": "Làm thế nào để kết hợp mô hình Vision-Language và thuật toán kiểm tra cú pháp đồ thị để sinh đặc tả kiến trúc có độ chính xác cấu trúc > 95%?",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "GAP_CANDIDATE",
+        "content": "Các công cụ hiện tại chỉ sinh mã Mermaid đơn giản từ văn bản, chưa hỗ trợ trích xuất từ hình vẽ phác thảo phức tạp và thiếu cơ chế phản biện đa chiều.",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "CONTRIBUTION",
+        "content": "Đề xuất quy trình 2 pha: Visual Token Parsing kết hợp Syntax-Constrained Decoding cho Mermaid AST.",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "CLAIM",
+        "content": "Hệ thống giảm 70% lỗi cú pháp Mermaid so với single-prompt VLM và tăng 40% độ đầy đủ của tài liệu đặc tả.",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "EVIDENCE",
+        "content": "Bộ dữ liệu 300 bản vẽ kiến trúc phần mềm thực tế kèm nhãn sơ đồ C4 chuẩn.",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "CONSTRAINT",
+        "content": "Khống chế mô hình Qwen2-VL-7B chạy trong 1x GPU NVIDIA RTX 3090 (24GB VRAM).",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "OPEN_QUESTION",
+        "content": "Khả năng phân giải các bản vẽ có chất lượng ảnh thấp hoặc chữ viết tay quá mờ?",
+        "status": "PROPOSED"
+      }
+    ]
+  },
+  "round_2_related_works": {
+    "related_works": [
+      {
+        "paper_title": "MM-Vet: Evaluating Large Multimodal Models for Integrated Capabilities",
+        "authors": "Weihao Yu et al.",
+        "year": 2023,
+        "what_they_did": "Benchmark đánh giá năng lực tích hợp của các mô hình đa phương thức.",
+        "feedback": "Tập trung vào nhận diện tổng quát, chưa có tác vụ chuyên sâu về sinh đồ thị kiến trúc.",
+        "missing_points": "Thiếu bộ tiêu chí đánh giá tính hợp lệ của sơ đồ hệ thống phần mềm.",
+        "source_url": "https://arxiv.org/abs/2308.02490",
+        "source_type": "proceedings"
+      },
+      {
+        "paper_title": "VisionLLM: Large Language Model is Also an Open-Ended Decoder for Vision-Centric Tasks",
+        "authors": "Wenhai Wang et al.",
+        "year": 2023,
+        "what_they_did": "Sử dụng LLM làm decoder cho các tác vụ thị giác đầu cuối mở.",
+        "feedback": "Khả năng định vị tốt nhưng chưa hỗ trợ sinh cú pháp ngôn ngữ đặc tả có cấu trúc như Mermaid.",
+        "missing_points": "Chưa có ràng buộc cú pháp ngữ pháp (Grammar-Constrained Generation).",
+        "source_url": "https://arxiv.org/abs/2305.11175",
+        "source_type": "peer-reviewed"
+      },
+      {
+        "paper_title": "ChartQA: A Benchmark for Question Answering about Charts with Visual and Logical Reasoning",
+        "authors": "Ahmed Masry et al.",
+        "year": 2022,
+        "what_they_did": "Bộ dữ liệu hỏi đáp về biểu đồ hình ảnh.",
+        "feedback": "Tập trung vào biểu đồ cột/tròn, không phải sơ đồ luồng hệ thống hay sơ đồ khối kiến trúc.",
+        "missing_points": "Không hỗ trợ sơ đồ tuần tự và sơ đồ quan hệ thực thể.",
+        "source_url": "https://arxiv.org/abs/2203.10244",
+        "source_type": "proceedings"
+      },
+      {
+        "paper_title": "StructLM: Tuning Language Models for Structured Data Understanding",
+        "authors": "Alex Zhuang et al.",
+        "year": 2024,
+        "what_they_did": "Huấn luyện mô hình chuyên biệt cho việc hiểu và sinh dữ liệu có cấu trúc (JSON, SQL, Graphs).",
+        "feedback": "Hiệu quả cao trên dữ liệu văn bản có cấu trúc nhưng chưa tích hợp nhánh thị giác đa phương thức.",
+        "missing_points": "Chưa hỗ trợ pipeline kết hợp Multimodal Vision + Structured Generation.",
+        "source_url": "https://arxiv.org/abs/2402.16671",
+        "source_type": "peer-reviewed"
+      }
+    ],
+    "selected_gap_direction": {
+      "letter": "D",
+      "label": "Kết hợp toàn diện & Tối ưu GPU",
+      "description": "Tích hợp mô hình thị giác Vision-Language với bộ giải mã ràng buộc ngữ pháp Mermaid AST chạy trên 1x RTX 3090."
+    }
+  },
+  "round_3_experiments_and_feasibility": {
+    "contributions": [
+      "Kiến trúc MermaidAST-Decoder với cơ chế kiểm tra tính hợp lệ cú pháp thời gian thực.",
+      "Bộ công cụ Benchmark Whiteboard2Spec đánh giá chất lượng chuyển đổi phác thảo kiến trúc."
+    ],
+    "claim_evidence_matrix": [
+      {
+        "claim": "Tỷ lệ sơ đồ Mermaid hợp lệ (Syntax Validity Rate) đạt 98.2% so với 72.5% của baseline GPT-4V.",
+        "baseline": "Zero-shot GPT-4V & Qwen2-VL-7B Direct Prompting",
+        "metric": "Syntax Validity Rate (%) & Node-Edge IoU",
+        "evidence": "300 bản vẽ kiểm thử với trình biên dịch Mermaid CLI tự động kiểm tra.",
+        "rejection_condition": "Tỷ lệ cú pháp hợp lệ dưới 90%."
+      },
+      {
+        "claim": "Hệ thống vận hành trơn tru trên 1x GPU NVIDIA RTX 3090 với thời gian sinh < 4.0s.",
+        "baseline": "Cloud Multi-GPU cluster",
+        "metric": "Inference Latency & VRAM (GB)",
+        "evidence": "Log đo đạc thực tế trên card RTX 3090 24GB VRAM.",
+        "rejection_condition": "VRAM vượt quá 24GB hoặc thời gian sinh > 8s."
+      }
+    ],
+    "experiment_protocols": [
+      {
+        "name": "TN1: Diagram Parsing & Syntax Accuracy",
+        "protocol": "Chạy bộ kiểm tra 300 ảnh phác thảo qua pipeline và đếm số sơ đồ render thành công mà không có lỗi cú pháp.",
+        "expected_outcome": "Đạt trên 98% sơ đồ hợp lệ."
+      },
+      {
+        "name": "TN2: Graph Topology IoU Evaluation",
+        "protocol": "So sánh danh sách các node, edge và label sinh ra so với ground truth sơ đồ gốc.",
+        "expected_outcome": "Topology IoU đạt > 0.88."
+      },
+      {
+        "name": "TN3: GPU Feasibility Profiling",
+        "protocol": "Đo đạc VRAM tiêu thụ khi tải mô hình Qwen2-VL-7B (4-bit/8-bit quantization).",
+        "expected_outcome": "VRAM chỉ chiếm 14.5GB, hoàn toàn khả thi trên RTX 3090."
+      }
+    ],
+    "feasibility_estimation": {
+      "model_name": "Qwen2-VL-7B-Instruct (8-bit)",
+      "seed_prompts_count": 6,
+      "candidates_count": 3,
+      "vram_needed_gb": 14.5,
+      "tokens_estimated": 36000,
+      "gpu_time_hours": 0.45,
+      "is_feasible": true,
+      "explanation": "Mô hình Qwen2-VL-7B chạy ở chế độ lượng tử hóa 8-bit chỉ tiêu thụ 14.5GB VRAM, hoàn toàn nằm trong giới hạn 24GB của card NVIDIA RTX 3090."
+    }
+  },
+  "round_4_judges_review": {
+    "spec_version_used": 1,
+    "status": "COMPLETED",
+    "judges": [
+      {
+        "type": "gap",
+        "verdict": "ACCEPT",
+        "issues": []
+      },
+      {
+        "type": "contribution",
+        "verdict": "ACCEPT",
+        "issues": []
+      },
+      {
+        "type": "experiment",
+        "verdict": "ACCEPT",
+        "issues": []
+      },
+      {
+        "type": "evidence",
+        "verdict": "ACCEPT",
+        "issues": []
+      },
+      {
+        "type": "conference-readiness",
+        "verdict": "ACCEPT",
+        "issues": []
+      }
+    ]
+  },
+  "round_5_final_spec_summary": {
+    "title": "Multi-Modal Research Specification & Interactive Architecture Diagram Generation",
+    "status": "CONFIRMED_BY_USER",
+    "export_formats": ["MARKDOWN", "JSON", "PDF"]
+  }
+}

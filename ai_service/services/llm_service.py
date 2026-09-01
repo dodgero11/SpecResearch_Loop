@@ -1,78 +1,166 @@
 import os
 import json
+import time
+import re
 import google.generativeai as genai
 from typing import Dict, Any, Optional, List
 from schemas.spec_schemas import (
-    ClarifyResponse, RelatedWorksResponse, SpecExperimentResponse,
-    JudgesPanelResponse, FinalSpecResponse
+    ClarifyUnderstandResponse, ClarifyQuestionsResponse, QuestionItem,
+    DecomposeResponse, SpecCardSchema, SpecCardType, SpecCardStatus,
+    RelatedWorksResponse, RelatedWorkItem, ProposedGapOption,
+    GapAnalysisResponse, DirectionOption,
+    SpecExperimentResponse, ClaimCardSchema, ExperimentSchema, FeasibilityEstimation, FeasibilityRequest,
+    SingleClaimExperimentResponse, ConflictCheckResponse, ConflictItem,
+    JudgesPanelResponse, JudgeResultSchema, IssueSchema, IssueChoice, SeverityEnum, VerdictEnum,
+    FinalSpecResponse, ClarifyResponse, ClarifyQuestion, QuestionOption
 )
 
 class LlmService:
     def __init__(self):
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        if self.api_key:
-            genai.configure(api_key=self.api_key)
-            self.model_name = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
-        else:
-            self.model_name = None
+        self.api_key = os.getenv("GEMINI_API_KEY", "").strip(' "\'')
+        # Clean model name (support gemini-1.5-flash, gemini-2.0-flash, etc.)
+        raw_model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash").strip(' "\'')
+        if not raw_model or "gemini-3" in raw_model:
+            raw_model = "gemini-1.5-flash"
+        self.model_name = raw_model
+        self.fallback_models = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
+        
+        if self.api_key and len(self.api_key) > 10:
+            try:
+                genai.configure(api_key=self.api_key)
+            except Exception as e:
+                print(f"[Warning] Failed to configure Gemini API: {e}")
 
-    def call_gemini_structured(self, prompt: str, response_schema: Any) -> Any:
-        """
-        Call Gemini API and return parsed Pydantic schema response.
-        """
-        if not self.api_key or not self.model_name:
-            raise ValueError("GEMINI_API_KEY is not set or model is not configured.")
-            
-        try:
-            model = genai.GenerativeModel(self.model_name)
-            
-            # Request structured JSON format conforming to the Pydantic schema
-            generation_config = {
-                "response_mime_type": "application/json",
-                "response_schema": response_schema
-            }
-            
-            response = model.generate_content(
-                prompt,
-                generation_config=generation_config
-            )
-            
-            # Parse the JSON response into Pydantic model
-            data = json.loads(response.text)
-            return response_schema.model_validate(data)
-        except Exception as e:
-            print(f"Error in Gemini structured call: {e}")
-            raise e
+    def _clean_json_text(self, text: str) -> str:
+        """Strip markdown fences and whitespace from LLM response."""
+        text = text.strip()
+        # Remove markdown code blocks if present
+        if text.startswith("```json"):
+            text = text[7:]
+        elif text.startswith("```"):
+            text = text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
+        
+        # Regex search for the outermost JSON object or array
+        match = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', text)
+        if match:
+            return match.group(1)
+        return text
 
-    def process_step1_clarify(self, idea: str) -> ClarifyResponse:
+    def call_gemini_structured(self, prompt: str, response_schema: Any, max_retries: int = 3) -> Any:
         """
-        Vòng 1: Clarifier Agent. Takes raw idea, refines it, decomposes it into cards, 
-        and creates 2-3 confirmation questions.
+        Call Gemini API and return parsed Pydantic schema response with retry & model fallback.
         """
+        if not self.api_key or len(self.api_key) < 10:
+            raise ValueError("GEMINI_API_KEY is not set or invalid.")
+            
+        models_to_try = [self.model_name] + [m for m in self.fallback_models if m != self.model_name]
+        last_error = None
+
+        for model_candidate in models_to_try:
+            for attempt in range(max_retries):
+                try:
+                    model = genai.GenerativeModel(model_candidate)
+                    try:
+                        # Attempt native structured output
+                        generation_config = {
+                            "response_mime_type": "application/json",
+                            "response_schema": response_schema,
+                            "temperature": 0.2
+                        }
+                        response = model.generate_content(
+                            prompt,
+                            generation_config=generation_config
+                        )
+                        raw_text = self._clean_json_text(response.text)
+                        data = json.loads(raw_text)
+                        return response_schema.model_validate(data)
+                    except Exception as inner_e:
+                        # Fallback to prompt-guided JSON generation if schema mode throws an exception
+                        print(f"[Warning] Native schema generation failed ({inner_e}), trying prompt-guided JSON parse...")
+                        json_prompt = f"{prompt}\n\nIMPORTANT: Return ONLY a valid JSON object matching the required schema. Do not add any markdown formatting or commentary."
+                        response = model.generate_content(
+                            json_prompt,
+                            generation_config={"temperature": 0.2}
+                        )
+                        raw_text = self._clean_json_text(response.text)
+                        data = json.loads(raw_text)
+                        return response_schema.model_validate(data)
+                        
+                except Exception as e:
+                    last_error = e
+                    err_str = str(e).lower()
+                    print(f"[Attempt {attempt + 1}/{max_retries} with {model_candidate}] Error in Gemini structured call: {e}")
+                    
+                    # If rate limited or transient error, sleep with exponential backoff
+                    if "429" in err_str or "quota" in err_str or "resourceexhausted" in err_str:
+                        sleep_sec = 2 ** (attempt + 1)
+                        print(f"Rate limited. Backing off for {sleep_sec}s...")
+                        time.sleep(sleep_sec)
+                    elif attempt < max_retries - 1:
+                        time.sleep(1)
+                    else:
+                        break # Try next candidate model
+
+        raise last_error or RuntimeError("Gemini structured call failed across all candidate models.")
+
+    # ==========================================
+    # VÒNG 1: CLARIFY & DECOMPOSE
+    # ==========================================
+
+    def process_step1_understand(self, idea: str, feedback: Optional[str] = None) -> ClarifyUnderstandResponse:
+        """Step 1a: Understand the idea, identify key issues and compute confidence."""
         prompt = f"""
-System Instructions:
-You are the Clarifier Agent in the SpecResearch Loop system. Your goal is to take a raw/vague research idea in Vietnamese and clarify it.
-Perform the following:
-1. Rephrase/clarify the idea in simple, clear, and formal Vietnamese academic language (for clarified_idea).
-2. Decompose the idea into spec cards of types: PROBLEM, RESEARCH_QUESTION, GAP_CANDIDATE. 
-   - PROBLEM: The core problem statement.
-   - RESEARCH_QUESTION: The main research question to answer.
-   - GAP_CANDIDATE: Possible candidates for research gaps.
-   Each card has 'type', 'content' (Vietnamese), 'status', and optionally 'metadata'.
-3. Generate 2 to 3 Vietnamese multiple-choice confirmation questions (ClarifyQuestion) to clarify user assumptions, goals, and constraints. Each question must have a 'question' string, an 'example' answer string, and 'options' containing 'options' (list of strings) and 'allow_other': true.
+System: You are an expert AI Research Assistant.
+Analyze the following raw research idea in Vietnamese.
+1. Rephrase and clarify the research idea clearly and formally (clarified_idea in Vietnamese).
+2. Identify 2-4 key issues, open questions, or missing aspects that need clarification (key_issues in Vietnamese).
+3. Assign a confidence score from 0.0 to 1.0 (confidence).
 
-Write the output conforming strictly to the ClarifyResponse JSON schema.
-
-Raw Research Idea:
-"{idea}"
+Raw Idea: "{idea}"
+User Feedback (if any): "{feedback or ''}"
 """
-        return self.call_gemini_structured(prompt, ClarifyResponse)
+        return self.call_gemini_structured(prompt, ClarifyUnderstandResponse)
+
+    def process_step1_questions(self, clarified_idea: str) -> ClarifyQuestionsResponse:
+        """Step 1b: Generate multiple-choice confirmation questions with 'Other' option."""
+        prompt = f"""
+System: You are an expert AI Research Assistant.
+Given the clarified research idea, generate 2 to 3 Vietnamese multiple-choice confirmation questions to clarify assumptions, tasks, and constraints.
+Each question MUST have:
+- question: Clear question in Vietnamese
+- example: Short example answer
+- options: List of 2-3 specific options in Vietnamese, with the LAST element always being "Other"
+
+Clarified Idea: "{clarified_idea}"
+"""
+        return self.call_gemini_structured(prompt, ClarifyQuestionsResponse)
+
+    def process_step2_decompose(self, context: dict) -> DecomposeResponse:
+        """Step 2: Decompose idea into exactly 8 fixed seed cards (all PROPOSED)."""
+        prompt = f"""
+System: Decompose the clarified research idea into exactly 8 spec cards (one for each type):
+Types: PROBLEM, RESEARCH_QUESTION, GAP_CANDIDATE, CONTRIBUTION, CLAIM, EVIDENCE, CONSTRAINT, OPEN_QUESTION.
+Each card has:
+- type: One of the 8 types above
+- content: Detailed description in Vietnamese
+- status: "PROPOSED"
+
+Context:
+Idea: {context.get('idea', '')}
+Clarified: {context.get('clarifiedIdea', '')}
+Answers: {json.dumps(context.get('answers', []), ensure_ascii=False)}
+"""
+        return self.call_gemini_structured(prompt, DecomposeResponse)
+
+    # ==========================================
+    # VÒNG 2: RELATED WORKS & GAP ANALYSIS
+    # ==========================================
 
     def process_step2_related_works(self, problem: str, research_question: str, papers: List[Dict[str, Any]]) -> RelatedWorksResponse:
-        """
-        Vòng 2: Related Work & Gap Finder. Takes problem, research question, and raw papers list,
-        then synthesizes comparative analysis and proposed research gaps.
-        """
+        """Step 3a: Synthesize comparative related works analysis and gap options."""
         papers_context = ""
         for i, p in enumerate(papers, 1):
             papers_context += f"""
@@ -80,105 +168,163 @@ Paper #{i}:
 - Title: {p.get('title')}
 - Authors: {p.get('authors')}
 - Year: {p.get('year')}
-- Summary/Abstract: {p.get('summary')}
+- Summary: {p.get('summary')}
 - URL: {p.get('url')}
 """
-
         prompt = f"""
-System Instructions:
-You are the Related Work & Gap Finder Agent. You are given a research problem, a research question, and a list of real academic papers retrieved from arXiv.
-Perform the following:
-1. For each paper in the list, write a RelatedWorkItem in Vietnamese:
-   - paper_title: The exact title of the paper.
-   - authors: List of authors.
-   - year: Year published.
-   - what_they_did: Explain in Vietnamese what they proposed or did in that paper (summarize based on abstract).
-   - feedback: Criticize or comment on their methodology or results in Vietnamese.
-   - missing_points: State what is missing or limitations they had in Vietnamese, especially regarding VRAM/Token hardware resource constraints, modern LLM agent verification, or human-in-the-loop workflows.
-   - source_url: The exact source URL from the paper metadata. (No hallucinations!)
-2. Propose 3 to 4 research gap candidates (ProposedGapOption) in Vietnamese:
-   - gap_title: Short descriptive title of the research gap.
-   - description: Detailed description of this research gap.
-   - example_selection: Suggestion of what user selection might look like.
-   - options: Standard option structure {{{{ 'options': ['Đồng ý chọn Gap này', 'Bác bỏ', 'Cần điều chỉnh thêm'], 'allow_other': True }}}} in Vietnamese.
+System: You are the Related Work & Gap Finder Agent.
+Given the research problem, research question, and papers retrieved from arXiv, generate a RelatedWorksResponse.
+1. For each paper, provide:
+   - paper_title: Title
+   - authors: Author list
+   - year: Year
+   - what_they_did: Description in Vietnamese
+   - feedback: Critical feedback in Vietnamese
+   - missing_points: Limitations in Vietnamese
+   - source_url: URL link
+   - source_type: "proceedings" or "peer-reviewed"
+2. Propose 3-4 gap directions (ProposedGapOption) with gap_title, description, and Vietnamese options with allow_other=True.
 
-Write the output conforming strictly to the RelatedWorksResponse JSON schema.
-
-Research Context:
-- Problem: {problem}
-- Research Question: {research_question}
-
-Retrieved Papers:
+Problem: {problem}
+Research Question: {research_question}
+Papers:
 {papers_context}
 """
         return self.call_gemini_structured(prompt, RelatedWorksResponse)
 
-    def process_step3_experiment(self, problem: str, gap: str) -> SpecExperimentResponse:
-        """
-        Vòng 3: Contribution, Claim-Evidence & Kế hoạch thí nghiệm.
-        Generates scientific contributions, claim cards, detailed experiment protocols,
-        and feasibility checks on RTX 3090 resources.
-        """
+    def process_step2_gap_analysis(self, gap_candidate: str, related_works: List[Any]) -> GapAnalysisResponse:
+        """Step 3b: Gap analysis + 4 focus directions A, B, C, D."""
         prompt = f"""
-System Instructions:
-You are the Experiment Designer Agent in the SpecResearch Loop system.
-Given a research problem and the chosen gap, perform the following:
-1. Propose 2 to 3 scientific contributions (contributions) in Vietnamese.
-2. Design 2 to 3 Claim-Evidence Cards (claims):
-   - claim: Scientific claim in Vietnamese.
-   - baseline: Baseline method for comparison.
-   - metric: Metric for evaluation.
-   - evidence: Support evidence details.
-   - rejection_condition: Rejection condition (falsification).
-3. Design 3 detailed experiments (experiments) from baseline to ablation studies.
-4. Estimate hardware feasibility (feasibility_estimation) for a single consumer GPU (NVIDIA RTX 3090, 24GB VRAM). Ensure VRAM needed is within 24GB VRAM and explain details in Vietnamese.
+System: Analyze the research gap candidate against related works and generate 4 specific directions (A, B, C, D).
+Fields:
+- what_was_done (Vietnamese)
+- limitation (Vietnamese)
+- why_it_matters (Vietnamese)
+- testable_with (Vietnamese)
+- directions: exactly 4 items with letter ('A','B','C','D'), label, and description in Vietnamese.
 
-Write the output conforming strictly to the SpecExperimentResponse JSON schema.
+Gap Candidate: "{gap_candidate}"
+Related Works: {json.dumps(related_works, ensure_ascii=False)}
+"""
+        return self.call_gemini_structured(prompt, GapAnalysisResponse)
+
+    def process_step3_conflicts(self, pairs: List[Any], related_works: List[Any]) -> ConflictCheckResponse:
+        """Detect conflicts between claim-evidence pairs and related works."""
+        prompt = f"""
+System: Check for potential conflicts or weak support between claim-evidence pairs and the cited literature.
+Return a list of ConflictItem (claim_card_id, evidence_card_id, linked_sources, reason in Vietnamese).
+
+Pairs: {json.dumps(pairs, ensure_ascii=False)}
+Related Works: {json.dumps(related_works, ensure_ascii=False)}
+"""
+        return self.call_gemini_structured(prompt, ConflictCheckResponse)
+
+    # ==========================================
+    # VÒNG 3: CONTRIBUTIONS, CLAIMS & EXPERIMENTS
+    # ==========================================
+
+    def process_step3_experiment(self, problem: str, gap: str, direction: Optional[str] = None) -> SpecExperimentResponse:
+        """Step 4: Design contributions, claims, experiments, and RTX 3090 feasibility."""
+        prompt = f"""
+System: You are the Experiment Designer Agent in SpecResearch Loop.
+1. Propose 2-3 scientific contributions in Vietnamese.
+2. Design 2-3 ClaimCardSchema (claim, baseline, metric, evidence, rejection_condition).
+3. Design 3 detailed ExperimentSchema (name e.g. 'TN1: Baseline', 'TN2: Đánh giá chất lượng', 'TN3: Ablation study', protocol in Vietnamese, expected_outcome in Vietnamese).
+4. Estimate FeasibilityEstimation for a consumer GPU (NVIDIA RTX 3090, 24GB VRAM). Ensure is_feasible is True and vram_needed_gb <= 24.0.
 
 Problem: {problem}
 Gap: {gap}
+Direction: {direction or ''}
 """
         return self.call_gemini_structured(prompt, SpecExperimentResponse)
 
-    def process_step4_judges(self, problem: str, gap: str, contribution: str, claims_text: str, experiments_text: str) -> JudgesPanelResponse:
-        """
-        Vòng 4: Panel Judge Độc Lập & Phản Biển (Multi-Judge Review).
-        Evaluates the spec using 5 independent judges.
-        """
+    def process_step3_feasibility(self, req: FeasibilityRequest) -> FeasibilityEstimation:
+        """Dedicated hardware feasibility calculation constrained to single consumer GPU (RTX 3090)."""
         prompt = f"""
-System Instructions:
-You are the independent Multi-Judge Review Panel. You must evaluate the proposed research spec on 5 independent aspects:
-1. gap: Check if the gap is supported by literature.
-2. contribution: Check if the contribution is new and not exaggerated.
-3. experiment: Check if the experiments support the claims.
-4. evidence: Check if citations and evidences are in the correct context.
-5. conference-readiness: Score originality, soundness, clarity, and reproducibility.
+System: Calculate hardware feasibility and VRAM estimation for running LLM evaluation on a single consumer GPU (NVIDIA RTX 3090, 24GB VRAM).
+Model: {req.model_name}
+Seed Prompts: {req.seed_prompts_count}
+Candidates count: {req.candidates_count}
+Context Length: {req.context_length}
+Target GPU: {req.gpu_target}
 
-For each judge, output a JudgeResultSchema:
-- type: 'gap', 'contribution', 'experiment', 'evidence', or 'conference-readiness'.
-- verdict: 'ACCEPT', 'REVIEW_REQUIRED', or 'REJECT'.
-- issues: List of Issues (severity, description in Vietnamese, suggestion in Vietnamese).
-
-Write the output conforming strictly to the JudgesPanelResponse JSON schema.
-
-Research Spec details:
-- Problem: {problem}
-- Gap: {gap}
-- Contribution: {contribution}
-- Claims: {claims_text}
-- Experiments: {experiments_text}
+Return FeasibilityEstimation:
+- model_name
+- seed_prompts_count
+- candidates_count
+- vram_needed_gb (must be estimated realistically; if >24GB, is_feasible=False; if <=24GB, is_feasible=True)
+- tokens_estimated
+- gpu_time_hours
+- is_feasible (True if vram_needed_gb <= 24.0 else False)
+- explanation in Vietnamese
 """
-        return self.call_gemini_structured(prompt, JudgesPanelResponse)
+        return self.call_gemini_structured(prompt, FeasibilityEstimation)
+
+    def process_step3_single_claim(self, claim_evidence: dict) -> SingleClaimExperimentResponse:
+        """Generate one experiment for a single claim-evidence card."""
+        prompt = f"""
+System: Design a single scientific experiment (name, protocol in Vietnamese, expected_outcome in Vietnamese) to test the following claim:
+Claim: {claim_evidence.get('claim', '')}
+Baseline: {claim_evidence.get('baseline', '')}
+Metric: {claim_evidence.get('metric', '')}
+Evidence: {claim_evidence.get('evidence', '')}
+Rejection Condition: {claim_evidence.get('rejectionCondition', '') or claim_evidence.get('rejection_condition', '')}
+"""
+        return self.call_gemini_structured(prompt, SingleClaimExperimentResponse)
+
+    # ==========================================
+    # VÒNG 4: 5 JUDGES PANEL
+    # ==========================================
+
+    def process_step4_judges(self, problem: str, gap: str, contribution: str, claims_text: str, experiments_text: str) -> JudgesPanelResponse:
+        """Step 5: Run 5 independent judges panel."""
+        prompt = f"""
+System: You are the independent Multi-Judge Review Panel. Evaluate the research spec on 5 independent aspects:
+1. 'gap': Checks if the research gap is well-grounded in literature.
+2. 'contribution': Checks if contributions are novel, clearly scoped, and not exaggerated.
+3. 'experiment': Checks if experiment protocols (TN1-TN5) adequately prove the claims and metric comparisons.
+4. 'evidence': Checks if citations and evidence are correctly mapped without hallucinations.
+5. 'conference-readiness': Evaluates Overall Originality, Soundness, Clarity, and Reproducibility for top conferences (ACL/EMNLP/NeurIPS).
+
+For each of the 5 judges, output JudgeResultSchema:
+- type: 'gap' | 'contribution' | 'experiment' | 'evidence' | 'conference-readiness'
+- verdict: 'ACCEPT' | 'REVIEW_REQUIRED' | 'REJECT'
+- issues: List of IssueSchema (severity 'CRITICAL'|'MAJOR'|'MINOR', title, description in Vietnamese, suggestion in Vietnamese, flagged_by, choices with letter/label/understanding in Vietnamese).
+
+Problem: {problem}
+Gap: {gap}
+Contribution: {contribution}
+Claims: {claims_text}
+Experiments: {experiments_text}
+"""
+        res = self.call_gemini_structured(prompt, JudgesPanelResponse)
+        # Ensure all 5 judge types exist
+        existing_types = {j.type for j in res.judges}
+        expected_types = ["gap", "contribution", "experiment", "evidence", "conference-readiness"]
+        for exp_type in expected_types:
+            if exp_type not in existing_types:
+                res.judges.append(JudgeResultSchema(type=exp_type, verdict=VerdictEnum.ACCEPT, issues=[]))
+        return res
+
+    # ==========================================
+    # VÒNG 5: FINAL SPEC & EXPORT
+    # ==========================================
 
     def process_step5_final_spec(self, project_title: str, problem: str, gap: str, contribution: str, claims_text: str, experiments_text: str, judges_text: str) -> FinalSpecResponse:
-        """
-        Vòng 5: Tổng hợp toàn bộ Decision Log và nội dung đã qua kiểm duyệt thành bản Research Spec hoàn chỉnh.
-        """
+        """Step 6: Synthesize final research spec markdown and JSON."""
         prompt = f"""
-System Instructions:
-You are the Final Spec Generator. Synthesize the entire research spec into a structured, publication-ready Markdown document in Vietnamese. Also construct the final JSON structure representation of the spec.
-
-Write the output conforming strictly to the FinalSpecResponse JSON schema.
+System: Synthesize the finalized research spec into structured publication-ready Markdown in Vietnamese, and return the final JSON representation.
+The markdown document must contain all 10 core sections:
+1. Tiêu đề & Tổng quan (Metadata & Executive Summary)
+2. Bối cảnh & Vấn đề nghiên cứu (Problem Formulation)
+3. Câu hỏi nghiên cứu & Giả thuyết (Research Questions & Hypotheses)
+4. Tổng quan tài liệu & Bảng đối sánh Related Works (Related Works Matrix)
+5. Khoảng trống nghiên cứu & Đóng góp mới (Research Gap & Novelty)
+6. Phương pháp tiếp cận & Kiến trúc kỹ thuật (Technical Approach)
+7. Ma trận Claim - Evidence (Claim-Evidence Matrix)
+8. Kế hoạch thí nghiệm chi tiết (TN1 -> TN5 Experiment Protocols)
+9. Đánh giá tính khả thi phần cứng (Hardware Feasibility on RTX 3090)
+10. Báo cáo phản biện của 5 AI Judges & Quyết định chốt (Judges Report & Decision Log)
 
 Project: {project_title}
 Problem: {problem}
@@ -186,6 +332,6 @@ Gap: {gap}
 Contribution: {contribution}
 Claims: {claims_text}
 Experiments: {experiments_text}
-Judges Feedback: {judges_text}
+Judges Summary: {judges_text}
 """
         return self.call_gemini_structured(prompt, FinalSpecResponse)

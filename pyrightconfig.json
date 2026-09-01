@@ -1,0 +1,21 @@
+{
+  "include": [
+    "ai_service"
+  ],
+  "extraPaths": [
+    "ai_service",
+    "ai_service/venv/Lib/site-packages",
+    "."
+  ],
+  "reportMissingImports": false,
+  "reportMissingModuleSource": false,
+  "executionEnvironments": [
+    {
+      "root": "ai_service",
+      "extraPaths": [
+        ".",
+        "venv/Lib/site-packages"
+      ]
+    }
+  ]
+}
