@@ -6,10 +6,22 @@ import { PrismaService } from './prisma.service';
 export class DecisionService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async record(projectId: string, type: DecisionType, target: string, value: unknown) {
-    const project = await this.prisma.researchProject.findUnique({ where: { id: projectId }, select: { id: true } });
+  /**
+   * Records a decision. Pass a Prisma transaction client to write the decision
+   * atomically with the mutation that triggered it (otherwise a failure after
+   * the mutation commits would lose the decision).
+   */
+  async record(
+    projectId: string,
+    type: DecisionType,
+    target: string,
+    value: unknown,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const client = tx ?? this.prisma;
+    const project = await client.researchProject.findUnique({ where: { id: projectId }, select: { id: true } });
     if (!project) throw new NotFoundException(`Project ${projectId} was not found`);
-    return this.prisma.decisionLog.create({ data: { projectId, type, target, value: value as Prisma.InputJsonValue } });
+    return client.decisionLog.create({ data: { projectId, type, target, value: value as Prisma.InputJsonValue } });
   }
 
   list(projectId: string) {

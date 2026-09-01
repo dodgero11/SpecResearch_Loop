@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, SpecIteration } from "@prisma/client";
+import { DecisionService } from "./decision.service";
 import { DependencyGraphService } from "./dependency-graph.service";
 import { PrismaService } from "./prisma.service";
 
@@ -11,6 +12,7 @@ export class ProjectService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly dependencyGraph: DependencyGraphService,
+    private readonly decisions: DecisionService,
   ) {}
 
   async create(title: string): Promise<{ id: string; title: string }> {
@@ -134,7 +136,7 @@ export class ProjectService {
         data: { latestSpecId: spec.id },
       });
       if (project.latestSpec) {
-        await this.cloneCardsAndLinks(
+        await this.cloneVersionData(
           transaction,
           projectId,
           project.latestSpec.id,
@@ -179,7 +181,19 @@ export class ProjectService {
       const current = project.latestSpec;
       const currentData = current.data as SpecData;
       const dataKey = this.dataKeyForNode(node);
-      const nextData = { ...currentData, [dataKey]: value };
+      // experimentPlan is the only deeply-nested data key — shallow overwrite
+      // would drop nested properties not included in `value`. Deep-merge it so
+      // contributions/experiments/feasibility survive partial updates.
+      const nextData =
+        dataKey === "experimentPlan"
+          ? {
+              ...currentData,
+              [dataKey]: {
+                ...((currentData[dataKey] as object) ?? {}),
+                ...((value as object) ?? {}),
+              },
+            }
+          : { ...currentData, [dataKey]: value };
       const spec = await transaction.specIteration.create({
         data: {
           projectId,
@@ -191,7 +205,7 @@ export class ProjectService {
         where: { id: projectId },
         data: { latestSpecId: spec.id },
       });
-      await this.cloneCardsAndLinks(
+      await this.cloneVersionData(
         transaction,
         projectId,
         current.id,
@@ -200,14 +214,21 @@ export class ProjectService {
       if (this.dependencyGraph.isValidNode(node)) {
         const affectedNodes = this.dependencyGraph.getAffectedNodes(node);
         for (const affectedNode of affectedNodes) {
-          await transaction.specArtifact.create({
-            data: {
+          await transaction.specArtifact.upsert({
+            where: {
+              specIterationId_node: {
+                specIterationId: spec.id,
+                node: affectedNode,
+              },
+            },
+            create: {
               projectId,
               specIterationId: spec.id,
               node: affectedNode,
               status: "STALE",
               data: {},
             },
+            update: { status: "STALE" },
           });
         }
       }
@@ -275,7 +296,7 @@ export class ProjectService {
         where: { id: projectId },
         data: { latestSpecId: spec.id },
       });
-      await this.cloneCardsAndLinks(
+      await this.cloneVersionData(
         transaction,
         projectId,
         current.id,
@@ -284,16 +305,30 @@ export class ProjectService {
       const affectedNodes =
         this.dependencyGraph.getAffectedNodes("related_work");
       for (const affectedNode of affectedNodes) {
-        await transaction.specArtifact.create({
-          data: {
+        await transaction.specArtifact.upsert({
+          where: {
+            specIterationId_node: {
+              specIterationId: spec.id,
+              node: affectedNode,
+            },
+          },
+          create: {
             projectId,
             specIterationId: spec.id,
             node: affectedNode,
             status: "STALE",
             data: {},
           },
+          update: { status: "STALE" },
         });
       }
+      await this.decisions.record(
+        projectId,
+        "ACCEPT",
+        "related-work:add",
+        { title: input.title, sourceUrl: input.sourceUrl },
+        transaction,
+      );
       if (idempotencyKey) {
         await transaction.idempotencyRecord.create({
           data: {
@@ -340,7 +375,7 @@ export class ProjectService {
         where: { id: projectId },
         data: { latestSpecId: spec.id },
       });
-      await this.cloneCardsAndLinks(
+      await this.cloneVersionData(
         transaction,
         projectId,
         current.id,
@@ -349,16 +384,30 @@ export class ProjectService {
       const affectedNodes =
         this.dependencyGraph.getAffectedNodes("related_work");
       for (const affectedNode of affectedNodes) {
-        await transaction.specArtifact.create({
-          data: {
+        await transaction.specArtifact.upsert({
+          where: {
+            specIterationId_node: {
+              specIterationId: spec.id,
+              node: affectedNode,
+            },
+          },
+          create: {
             projectId,
             specIterationId: spec.id,
             node: affectedNode,
             status: "STALE",
             data: {},
           },
+          update: { status: "STALE" },
         });
       }
+      await this.decisions.record(
+        projectId,
+        "ACCEPT",
+        "related-work:remove",
+        { workId },
+        transaction,
+      );
       return spec;
     });
   }
@@ -368,8 +417,13 @@ export class ProjectService {
     return node === "related_work" ? "relatedWork" : node;
   }
 
-  /** Copies cards and links from one spec version to another (immutable versioning). */
-  async cloneCardsAndLinks(
+  /**
+   * Copies cards, links, spec artifacts, and judge issues from one spec version
+   * to another (immutable versioning). Artifacts and judge issues must be cloned
+   * forward too, otherwise every version bump orphans the final-spec artifact
+   * (PDF export 404s) and wipes STALE markers / judge issues.
+   */
+  async cloneVersionData(
     transaction: Prisma.TransactionClient,
     projectId: string,
     fromSpecId: string,
@@ -391,6 +445,7 @@ export class ProjectService {
           isSeed: card.isSeed,
           reason: card.reason,
           metadata: card.metadata as Prisma.InputJsonValue | undefined,
+          createdAt: card.createdAt,
         },
       });
       cardMap.set(card.id, clone.id);
@@ -399,13 +454,55 @@ export class ProjectService {
       where: { projectId, specIterationId: fromSpecId },
     });
     for (const link of links) {
+      const sourceId = cardMap.get(link.sourceCardId);
+      const targetId = cardMap.get(link.targetCardId);
+      if (!sourceId || !targetId) continue; // skip orphan links
       await transaction.specCardLink.create({
         data: {
           projectId,
           specIterationId: toSpecId,
-          sourceCardId: cardMap.get(link.sourceCardId)!,
-          targetCardId: cardMap.get(link.targetCardId)!,
+          sourceCardId: sourceId,
+          targetCardId: targetId,
           type: link.type,
+        },
+      });
+    }
+    // Clone spec artifacts forward so invalidation state and the final-spec
+    // artifact survive version bumps.
+    const artifacts = await transaction.specArtifact.findMany({
+      where: { projectId, specIterationId: fromSpecId },
+    });
+    for (const artifact of artifacts) {
+      await transaction.specArtifact.create({
+        data: {
+          projectId,
+          specIterationId: toSpecId,
+          node: artifact.node,
+          status: artifact.status,
+          data: artifact.data as Prisma.InputJsonValue,
+        },
+      });
+    }
+    // Clone judge issues forward so they survive version bumps (otherwise
+    // GET /issues returns [] and the final spec's judges_summary is empty).
+    const issues = await transaction.judgeIssue.findMany({
+      where: { projectId, specIterationId: fromSpecId },
+    });
+    for (const issue of issues) {
+      await transaction.judgeIssue.create({
+        data: {
+          projectId,
+          specIterationId: toSpecId,
+          judgeType: issue.judgeType,
+          severity: issue.severity,
+          title: issue.title,
+          description: issue.description,
+          suggestion: issue.suggestion,
+          flaggedBy: issue.flaggedBy,
+          choices: issue.choices as Prisma.InputJsonValue,
+          status: issue.status,
+          resolvedChoice: issue.resolvedChoice,
+          customResolution: issue.customResolution,
         },
       });
     }

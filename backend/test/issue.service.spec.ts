@@ -5,6 +5,7 @@ describe('IssueService', () => {
   const prisma = {
     judgeIssue: { findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
     specArtifact: { upsert: jest.fn() },
+    $transaction: jest.fn(),
   };
   const projects = { latestSpec: jest.fn() };
   const judges = { runJudge: jest.fn() };
@@ -31,18 +32,24 @@ describe('IssueService', () => {
 
   it('resolve marks the issue resolved, invalidates affected nodes, and re-runs the flagging judge', async () => {
     prisma.judgeIssue.findFirst.mockResolvedValue({ id: 'issue-1', projectId: 'project-1', judgeType: 'gap' });
-    prisma.judgeIssue.update.mockResolvedValue({ id: 'issue-1', status: 'RESOLVED', resolvedChoice: 'A' });
     projects.latestSpec.mockResolvedValue({ id: 'spec-1', version: 1 });
-    prisma.specArtifact.upsert.mockResolvedValue({});
     judges.runJudge.mockResolvedValue({ type: 'gap', status: 'COMPLETED', specVersionUsed: 1, output: { issues: [] } });
+    const tx = {
+      judgeIssue: { update: jest.fn().mockResolvedValue({ id: 'issue-1', status: 'RESOLVED', resolvedChoice: 'A' }) },
+      specArtifact: { upsert: jest.fn().mockResolvedValue({}) },
+      decisionLog: { create: jest.fn().mockResolvedValue({}) },
+      researchProject: { findUnique: jest.fn().mockResolvedValue({ id: 'project-1' }) },
+    };
+    prisma.$transaction.mockImplementation((cb: (t: typeof tx) => unknown) => cb(tx));
 
     const result = await service.resolve('project-1', 'issue-1', 'A');
 
-    expect(prisma.judgeIssue.update).toHaveBeenCalledWith({
+    expect(tx.judgeIssue.update).toHaveBeenCalledWith({
       where: { id: 'issue-1' },
       data: { status: 'RESOLVED', resolvedChoice: 'A', customResolution: undefined },
     });
-    expect(prisma.specArtifact.upsert).toHaveBeenCalled();
+    expect(tx.specArtifact.upsert).toHaveBeenCalled();
+    expect(decisions.record).toHaveBeenCalledWith('project-1', 'ACCEPT', 'issue:issue-1', { choice: 'A', customChoice: undefined }, tx);
     expect(judges.runJudge).toHaveBeenCalledWith('project-1', 'gap');
     expect(result.updatedIssue.status).toBe('RESOLVED');
     expect(result.invalidatedNodes).toEqual(expect.arrayContaining(['contribution', 'claim', 'experiment', 'judge']));

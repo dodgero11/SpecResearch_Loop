@@ -104,7 +104,9 @@ describe('HTTP API', () => {
       .expect(200);
     expect(invalidations.body.specVersion).toBe(7);
     expect(invalidations.body.staleNodes).toEqual(expect.arrayContaining(['contribution', 'claim', 'experiment', 'judge']));
-    expect(invalidations.body.freshNodes).toEqual(expect.arrayContaining(['problem', 'related_work', 'gap']));
+    // STALE markers now survive version bumps (Phase 1) and card mutations
+    // invalidate their node (Phase 2), so problem/gap stay STALE here.
+    expect(invalidations.body.freshNodes).toEqual(expect.arrayContaining(['related_work']));
 
     const recomputed = await request(app.getHttpServer())
       .post(`/projects/${projectId}/recompute`)

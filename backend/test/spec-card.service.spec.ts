@@ -17,7 +17,8 @@ describe('SpecCardService', () => {
         delete: jest.fn().mockResolvedValue({}),
       },
       specCardLink: { findMany: jest.fn().mockResolvedValue([]) },
-      specArtifact: { create: jest.fn().mockResolvedValue({}) },
+      specArtifact: { findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}) },
+      judgeIssue: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({}) },
       idempotencyRecord: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
     };
     return {
@@ -32,8 +33,9 @@ describe('SpecCardService', () => {
   function makeService() {
     const { prisma, transaction } = makePrisma();
     const dependencyGraph = new DependencyGraphService();
-    const service = new SpecCardService(prisma as never, dependencyGraph);
-    return { service, transaction, prisma };
+    const decisions = { record: jest.fn().mockResolvedValue({}) };
+    const service = new SpecCardService(prisma as never, dependencyGraph, decisions as never);
+    return { service, transaction, prisma, decisions };
   }
 
   it('invalidates downstream nodes when creating a GAP_CANDIDATE card', async () => {
@@ -41,8 +43,8 @@ describe('SpecCardService', () => {
 
     await service.create('project-1', { type: 'GAP_CANDIDATE', content: 'A gap' });
 
-    expect(transaction.specArtifact.create).toHaveBeenCalledTimes(4);
-    const createdNodes = transaction.specArtifact.create.mock.calls.map((call: unknown[]) => (call[0] as { data: { node: string } }).data.node);
+    expect(transaction.specArtifact.upsert).toHaveBeenCalledTimes(5);
+    const createdNodes = transaction.specArtifact.upsert.mock.calls.map((call: unknown[]) => (call[0] as { create: { node: string } }).create.node);
     expect(createdNodes).toEqual(expect.arrayContaining(['contribution', 'claim', 'experiment', 'judge']));
   });
 
@@ -60,8 +62,8 @@ describe('SpecCardService', () => {
 
     await service.update('project-1', 'card-1', { content: 'new contribution' });
 
-    expect(transaction.specArtifact.create).toHaveBeenCalledTimes(3);
-    const createdNodes = transaction.specArtifact.create.mock.calls.map((call: unknown[]) => (call[0] as { data: { node: string } }).data.node);
+    expect(transaction.specArtifact.upsert).toHaveBeenCalledTimes(4);
+    const createdNodes = transaction.specArtifact.upsert.mock.calls.map((call: unknown[]) => (call[0] as { create: { node: string } }).create.node);
     expect(createdNodes).toEqual(expect.arrayContaining(['claim', 'experiment', 'judge']));
   });
 
@@ -70,8 +72,8 @@ describe('SpecCardService', () => {
 
     await service.create('project-1', { type: 'OPEN_QUESTION', content: 'A question' });
 
-    expect(transaction.specArtifact.create).toHaveBeenCalledTimes(4);
-    const createdNodes = transaction.specArtifact.create.mock.calls.map((call: unknown[]) => (call[0] as { data: { node: string } }).data.node);
+    expect(transaction.specArtifact.upsert).toHaveBeenCalledTimes(5);
+    const createdNodes = transaction.specArtifact.upsert.mock.calls.map((call: unknown[]) => (call[0] as { create: { node: string } }).create.node);
     expect(createdNodes).toEqual(expect.arrayContaining(['contribution', 'claim', 'experiment', 'judge']));
   });
 
@@ -80,9 +82,9 @@ describe('SpecCardService', () => {
 
     await service.create('project-1', { type: 'CONSTRAINT', content: 'A constraint' });
 
-    expect(transaction.specArtifact.create).toHaveBeenCalledTimes(1);
-    const createdNodes = transaction.specArtifact.create.mock.calls.map((call: unknown[]) => (call[0] as { data: { node: string } }).data.node);
-    expect(createdNodes).toEqual(['judge']);
+    expect(transaction.specArtifact.upsert).toHaveBeenCalledTimes(2);
+    const createdNodes = transaction.specArtifact.upsert.mock.calls.map((call: unknown[]) => (call[0] as { create: { node: string } }).create.node);
+    expect(createdNodes).toEqual(['experiment', 'judge']);
   });
 
   it('createMany creates all cards in one new spec version with isSeed', async () => {
@@ -117,18 +119,28 @@ describe('SpecCardService', () => {
   });
 
   it('update persists the reason field', async () => {
-    const { service, transaction } = makeService();
+    const { service, transaction, decisions } = makeService();
+    transaction.specCard.findFirst.mockResolvedValue({
+      id: 'card-1', projectId: 'project-1', specIterationId: 'spec-1', type: 'GAP_CANDIDATE', content: 'old', isSeed: false, status: 'PROPOSED',
+    });
     transaction.specCard.findMany.mockResolvedValue([
-      { id: 'card-1', projectId: 'project-1', specIterationId: 'spec-1', type: 'GAP_CANDIDATE', content: 'old', isSeed: false },
+      { id: 'card-1', projectId: 'project-1', specIterationId: 'spec-1', type: 'GAP_CANDIDATE', content: 'old', isSeed: false, status: 'PROPOSED' },
     ]);
     transaction.specCard.create.mockResolvedValue({
-      id: 'card-2', projectId: 'project-1', specIterationId: 'spec-2', type: 'GAP_CANDIDATE', content: 'old', isSeed: false,
+      id: 'card-2', projectId: 'project-1', specIterationId: 'spec-2', type: 'GAP_CANDIDATE', content: 'old', isSeed: false, status: 'PROPOSED',
     });
 
     await service.update('project-1', 'card-1', { status: 'AMBIGUOUS', reason: 'Chưa rõ nghĩa' });
 
     expect(transaction.specCard.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'AMBIGUOUS', reason: 'Chưa rõ nghĩa' }) }),
+    );
+    expect(decisions.record).toHaveBeenCalledWith(
+      'project-1',
+      'ACCEPT',
+      'card-status:card-1',
+      { oldStatus: 'PROPOSED', newStatus: 'AMBIGUOUS' },
+      transaction,
     );
   });
 });

@@ -67,15 +67,20 @@ export class RecomputeService {
     const order = this.dependencyGraph.getDependencyOrder();
     nodesToRecompute.sort((a, b) => order.indexOf(a) - order.indexOf(b));
 
-    const spec = await this.prisma.specIteration.create({
-      data: {
-        projectId,
-        version: latest.version + 1,
-        data: latest.data as Prisma.InputJsonValue,
-      },
+    // Create the new immutable spec version atomically: spec row + latest pointer
+    // + cloned cards/links/artifacts/issues all in one transaction.
+    const spec = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.specIteration.create({
+        data: {
+          projectId,
+          version: latest.version + 1,
+          data: latest.data as Prisma.InputJsonValue,
+        },
+      });
+      await tx.researchProject.update({ where: { id: projectId }, data: { latestSpecId: created.id } });
+      await this.projects.cloneVersionData(tx, projectId, latest.id, created.id);
+      return created;
     });
-    await this.prisma.researchProject.update({ where: { id: projectId }, data: { latestSpecId: spec.id } });
-    await this.projects.cloneCardsAndLinks(this.prisma, projectId, latest.id, spec.id);
 
     const judgeResults: JudgeResult[] = [];
     const nodeToJudgeResult = new Map<string, JudgeResult>();

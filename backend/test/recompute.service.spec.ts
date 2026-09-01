@@ -32,6 +32,12 @@ describe('RecomputeService', () => {
         specArtifact: { upsert: jest.fn().mockResolvedValue({}) },
         specCard: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({}) },
         specCardLink: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({}) },
+        $transaction: jest.fn((cb: (tx: unknown) => unknown) =>
+          cb({
+            specIteration: { create: jest.fn().mockResolvedValue(overrides.specIteration ?? { id: 'spec-2', projectId: 'project-1', version: 2 }) },
+            researchProject: { update: jest.fn().mockResolvedValue({}) },
+          }),
+        ),
       },
     };
   }
@@ -59,7 +65,7 @@ describe('RecomputeService', () => {
       }),
     };
     const dependencyGraph = new DependencyGraphService();
-    const projects = { cloneCardsAndLinks: jest.fn().mockResolvedValue(undefined) };
+    const projects = { cloneVersionData: jest.fn().mockResolvedValue(undefined) };
     const service = new RecomputeService(prisma as never, judges as unknown as JudgeService, dependencyGraph, projects as never);
     return { service, prisma, judges, projects };
   }
@@ -123,7 +129,7 @@ describe('RecomputeService', () => {
     expect(judges.runJudge).not.toHaveBeenCalledWith('project-1', 'claim');
     expect(judges.runJudge).not.toHaveBeenCalledWith('project-1', 'experiment');
     expect(prisma.specArtifact.upsert).toHaveBeenCalled();
-    expect(prisma.specIteration.create).toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalled();
   });
 
   it('recomputes only user-requested nodes when provided', async () => {

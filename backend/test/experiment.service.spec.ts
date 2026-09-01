@@ -1,11 +1,23 @@
+import { DependencyGraphService } from '../src/dependency-graph.service';
 import { ExperimentService } from '../src/experiment.service';
 
 describe('ExperimentService', () => {
-  const prisma = { specCard: { findMany: jest.fn() } };
+  const prisma = { specCard: { findMany: jest.fn() }, specArtifact: { upsert: jest.fn() }, $transaction: jest.fn() };
   const projects = { latestSpec: jest.fn(), createSpec: jest.fn() };
   const decisions = { record: jest.fn() };
   const ai = { specExperiment: jest.fn(), singleClaimExperiment: jest.fn() };
-  const service = new ExperimentService(prisma as never, projects as never, decisions as never, ai as never);
+  const dependencyGraph = new DependencyGraphService();
+  const service = new ExperimentService(prisma as never, projects as never, decisions as never, dependencyGraph, ai as never);
+
+  function mockTransaction() {
+    const tx = {
+      specArtifact: { upsert: jest.fn().mockResolvedValue({}) },
+      decisionLog: { create: jest.fn().mockResolvedValue({}) },
+      researchProject: { findUnique: jest.fn().mockResolvedValue({ id: 'project-1' }) },
+    };
+    prisma.$transaction.mockImplementation((cb: (t: typeof tx) => unknown) => cb(tx));
+    return tx;
+  }
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -28,7 +40,8 @@ describe('ExperimentService', () => {
         feasibility_estimation: { model_name: 'Llama', is_feasible: true },
       },
     });
-    projects.createSpec.mockResolvedValue({});
+    projects.createSpec.mockResolvedValue({ id: 'spec-2' });
+    mockTransaction();
 
     const result = await service.generatePlan('project-1');
 
@@ -44,11 +57,13 @@ describe('ExperimentService', () => {
 
   it('addContribution appends a contribution with null claimEvidence', async () => {
     projects.latestSpec.mockResolvedValue({ id: 'spec-1', version: 1, data: { experimentPlan: { contributions: [], experiments: [], feasibility: {} } } });
-    projects.createSpec.mockResolvedValue({});
+    projects.createSpec.mockResolvedValue({ id: 'spec-2' });
+    const tx = mockTransaction();
 
     const result = await service.addContribution('project-1', 'My contribution');
 
     expect(result.contribution).toMatchObject({ label: 'My contribution', claimEvidence: null });
+    expect(decisions.record).toHaveBeenCalledWith('project-1', 'ACCEPT', `contribution:${result.contribution.id}`, { label: 'My contribution' }, tx);
     expect(ai.specExperiment).not.toHaveBeenCalled();
   });
 
@@ -61,7 +76,8 @@ describe('ExperimentService', () => {
     ai.specExperiment.mockResolvedValue({
       output: { contributions: [], claims: [], experiments: [], feasibility_estimation: {} },
     });
-    projects.createSpec.mockResolvedValue({});
+    projects.createSpec.mockResolvedValue({ id: 'spec-2' });
+    mockTransaction();
 
     await service.generatePlan('project-1');
 
@@ -74,11 +90,13 @@ describe('ExperimentService', () => {
       version: 1,
       data: { experimentPlan: { contributions: [{ id: 'contrib-1', label: 'C1', claimEvidence: null }], experiments: [], feasibility: {} } },
     });
-    projects.createSpec.mockResolvedValue({});
+    projects.createSpec.mockResolvedValue({ id: 'spec-2' });
+    const tx = mockTransaction();
 
     const result = await service.updateContribution('project-1', 'contrib-1', 'C1 mới');
 
     expect(result.contribution).toMatchObject({ id: 'contrib-1', label: 'C1 mới' });
+    expect(decisions.record).toHaveBeenCalledWith('project-1', 'ACCEPT', 'contribution:contrib-1', { label: 'C1 mới' }, tx);
     expect(projects.createSpec).toHaveBeenCalledWith(
       'project-1',
       expect.objectContaining({ experimentPlan: expect.objectContaining({ contributions: [{ id: 'contrib-1', label: 'C1 mới', claimEvidence: null }] }) }),
@@ -102,13 +120,15 @@ describe('ExperimentService', () => {
       data: { experimentPlan: { contributions: [{ id: 'contrib-1', label: 'C1', claimEvidence: null }], experiments: [], feasibility: {} } },
     });
     ai.singleClaimExperiment.mockResolvedValue({ output: { experiment: { name: 'TN', protocol: 'p', expected_outcome: 'o' } } });
-    projects.createSpec.mockResolvedValue({});
+    projects.createSpec.mockResolvedValue({ id: 'spec-2' });
+    const tx = mockTransaction();
 
     const result = await service.saveClaimEvidence('project-1', 'contrib-1', {
       claim: 'c', baseline: 'b', metric: 'm', evidence: 'e', rejectionCondition: 'r',
     });
 
     expect(ai.singleClaimExperiment).toHaveBeenCalledWith({ claim: 'c', baseline: 'b', metric: 'm', evidence: 'e', rejectionCondition: 'r' });
+    expect(decisions.record).toHaveBeenCalledWith('project-1', 'ACCEPT', 'claim-evidence:contrib-1', { claimEvidence: { claim: 'c', baseline: 'b', metric: 'm', evidence: 'e', rejectionCondition: 'r' } }, tx);
     expect(result.experiment).toEqual({ name: 'TN', protocol: 'p', expected_outcome: 'o', relatedContributionIds: ['contrib-1'] });
     expect(result.needsReview).toBe(false);
   });
@@ -125,7 +145,8 @@ describe('ExperimentService', () => {
         },
       },
     });
-    projects.createSpec.mockResolvedValue({});
+    projects.createSpec.mockResolvedValue({ id: 'spec-2' });
+    mockTransaction();
 
     const result = await service.saveClaimEvidence('project-1', 'contrib-1', {
       claim: 'c', baseline: 'b', metric: 'm', evidence: 'e', rejectionCondition: 'r',
@@ -173,16 +194,30 @@ describe('ExperimentService', () => {
     projects.latestSpec.mockResolvedValue({
       id: 'spec-1',
       version: 1,
-      data: { experimentPlan: { contributions: [], experiments: [], feasibility: {} } },
+      data: { experimentPlan: { contributions: [{ id: 'c1' }, { id: 'c2' }], experiments: [], feasibility: { gpu_time_hours: 2, tokens_estimated: 1000 } } },
     });
-    projects.createSpec.mockResolvedValue({});
+    projects.createSpec.mockResolvedValue({ id: 'spec-2' });
+    const tx = {
+      specArtifact: { upsert: jest.fn().mockResolvedValue({}) },
+      decisionLog: { create: jest.fn().mockResolvedValue({}) },
+      researchProject: { findUnique: jest.fn().mockResolvedValue({ id: 'project-1' }) },
+    };
+    prisma.$transaction.mockImplementation((cb: (t: typeof tx) => unknown) => cb(tx));
 
     const result = await service.confirm('project-1', ['c1']);
 
     expect(projects.createSpec).toHaveBeenCalledWith(
       'project-1',
-      expect.objectContaining({ experimentPlan: expect.objectContaining({ confirmed: true, selectedContributionIds: ['c1'] }) }),
+      expect.objectContaining({
+        experimentPlan: expect.objectContaining({
+          confirmed: true,
+          selectedContributionIds: ['c1'],
+          // scaled feasibility is persisted on confirm (Phase 4.7)
+          feasibility: expect.objectContaining({ gpu_time_hours: 1, tokens_estimated: 500 }),
+        }),
+      }),
     );
+    expect(decisions.record).toHaveBeenCalledWith('project-1', 'ACCEPT', 'experiment-plan', { selectedContributionIds: ['c1'] }, tx);
     expect(result).toEqual({ saved: true });
   });
 });

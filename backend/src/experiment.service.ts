@@ -1,6 +1,8 @@
+import { randomUUID } from 'crypto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { SpecCardType } from '@prisma/client';
+import { Prisma, SpecCardType } from '@prisma/client';
 import { DecisionService } from './decision.service';
+import { DependencyGraphService, WorkflowNode } from './dependency-graph.service';
 import { AI_GATEWAY, AiGateway } from './integrations/ai-gateway.port';
 import { PrismaService } from './prisma.service';
 import { ProjectService, SpecData } from './project.service';
@@ -37,6 +39,7 @@ export class ExperimentService {
     private readonly prisma: PrismaService,
     private readonly projects: ProjectService,
     private readonly decisions: DecisionService,
+    private readonly dependencyGraph: DependencyGraphService,
     @Inject(AI_GATEWAY) private readonly ai: AiGateway,
   ) {}
 
@@ -64,36 +67,47 @@ export class ExperimentService {
       claimEvidence: claims[index] ? this.toClaimEvidence(claims[index]) : null,
     }));
     const plan: ExperimentPlan = { contributions: contributionItems, experiments, feasibility };
-    await this.projects.createSpec(projectId, { ...data, experimentPlan: plan });
-    return plan;
+    return this.prisma.$transaction(async (tx) => {
+      const nextSpec = await this.projects.createSpec(projectId, { ...data, experimentPlan: plan });
+      await this.invalidate(projectId, nextSpec.id, 'experiment', tx);
+      return plan;
+    });
   }
 
   /** Step 4b: add a manual contribution (no experiment generated). */
   async addContribution(projectId: string, label: string) {
-    const spec = await this.projects.latestSpec(projectId);
-    const data = spec.data as SpecData;
-    const plan = this.readPlan(data);
-    const contribution: ContributionItem = { id: `contrib-${Date.now()}`, label, claimEvidence: null };
-    const nextPlan = { ...plan, contributions: [...plan.contributions, contribution] };
-    await this.projects.createSpec(projectId, { ...data, experimentPlan: nextPlan });
-    return { contribution };
+    return this.prisma.$transaction(async (tx) => {
+      const spec = await this.projects.latestSpec(projectId);
+      const data = spec.data as SpecData;
+      const plan = this.readPlan(data);
+      const contribution: ContributionItem = { id: `contrib-${randomUUID()}`, label, claimEvidence: null };
+      const nextPlan = { ...plan, contributions: [...plan.contributions, contribution] };
+      const nextSpec = await this.projects.createSpec(projectId, { ...data, experimentPlan: nextPlan });
+      await this.invalidate(projectId, nextSpec.id, 'contribution', tx);
+      await this.decisions.record(projectId, 'ACCEPT', `contribution:${contribution.id}`, { label }, tx);
+      return { contribution };
+    });
   }
 
   /** Step 4b2: rename an existing contribution (frontend PUT). */
   async updateContribution(projectId: string, contributionId: string, label: string) {
-    const spec = await this.projects.latestSpec(projectId);
-    const data = spec.data as SpecData;
-    const plan = this.readPlan(data);
-    const contribution = plan.contributions.find((item) => item.id === contributionId);
-    if (!contribution) throw new NotFoundException(`Contribution ${contributionId} was not found`);
-    const nextPlan = {
-      ...plan,
-      contributions: plan.contributions.map((item) =>
-        item.id === contributionId ? { ...item, label } : item,
-      ),
-    };
-    await this.projects.createSpec(projectId, { ...data, experimentPlan: nextPlan });
-    return { contribution: { ...contribution, label } };
+    return this.prisma.$transaction(async (tx) => {
+      const spec = await this.projects.latestSpec(projectId);
+      const data = spec.data as SpecData;
+      const plan = this.readPlan(data);
+      const contribution = plan.contributions.find((item) => item.id === contributionId);
+      if (!contribution) throw new NotFoundException(`Contribution ${contributionId} was not found`);
+      const nextPlan = {
+        ...plan,
+        contributions: plan.contributions.map((item) =>
+          item.id === contributionId ? { ...item, label } : item,
+        ),
+      };
+      const nextSpec = await this.projects.createSpec(projectId, { ...data, experimentPlan: nextPlan });
+      await this.invalidate(projectId, nextSpec.id, 'contribution', tx);
+      await this.decisions.record(projectId, 'ACCEPT', `contribution:${contributionId}`, { label }, tx);
+      return { contribution: { ...contribution, label } };
+    });
   }
 
   /** Step 4c: save claim–evidence; generate an experiment only when none is linked yet. */
@@ -127,8 +141,13 @@ export class ExperimentService {
       contributions: plan.contributions.map((item) => (item.id === contributionId ? { ...item, claimEvidence } : item)),
       experiments: experiment ? [...plan.experiments, experiment] : plan.experiments,
     };
-    await this.projects.createSpec(projectId, { ...data, experimentPlan: nextPlan });
-    return { claimEvidence, experiment, needsReview };
+    // The AI call stays outside the tx; createSpec + invalidation + decision are atomic.
+    return this.prisma.$transaction(async (tx) => {
+      const nextSpec = await this.projects.createSpec(projectId, { ...data, experimentPlan: nextPlan });
+      await this.invalidate(projectId, nextSpec.id, 'claim', tx);
+      await this.decisions.record(projectId, 'ACCEPT', `claim-evidence:${contributionId}`, { claimEvidence }, tx);
+      return { claimEvidence, experiment, needsReview };
+    });
   }
 
   /** Step 4d: recompute feasibility for the selected contributions. */
@@ -136,36 +155,76 @@ export class ExperimentService {
     const spec = await this.projects.latestSpec(projectId);
     const data = spec.data as SpecData;
     const plan = this.readPlan(data);
-    const feasibility = plan.feasibility;
-    const total = plan.contributions.length || 1;
-    const ratio = selectedContributionIds.length / total;
+    const scaled = this.scaleFeasibility(plan, selectedContributionIds);
     return {
-      model: String(feasibility.model_name ?? ''),
-      seedPrompts: Number(feasibility.seed_prompts_count ?? 0),
-      rounds: Number(feasibility.rounds ?? 0),
-      candidates: Number(feasibility.candidates_count ?? 0),
-      vram: Number(feasibility.vram_needed_gb ?? 0),
-      hours: Number(feasibility.gpu_time_hours ?? 0) * ratio,
-      tokens: Math.round(Number(feasibility.tokens_estimated ?? 0) * ratio),
-      isFeasible: Boolean(feasibility.is_feasible ?? false),
-      explanation: String(feasibility.explanation ?? ''),
+      model: String(scaled.model_name ?? ''),
+      seedPrompts: Number(scaled.seed_prompts_count ?? 0),
+      rounds: Number(scaled.rounds ?? 0),
+      candidates: Number(scaled.candidates_count ?? 0),
+      vram: Number(scaled.vram_needed_gb ?? 0),
+      hours: Number(scaled.gpu_time_hours ?? 0),
+      tokens: Math.round(Number(scaled.tokens_estimated ?? 0)),
+      isFeasible: Boolean(scaled.is_feasible ?? false),
+      explanation: String(scaled.explanation ?? ''),
     };
   }
 
   /** Step 4e: confirm the plan with the selected contributions. */
   async confirm(projectId: string, selectedContributionIds: string[]) {
-    const spec = await this.projects.latestSpec(projectId);
-    const data = spec.data as SpecData;
-    const plan = this.readPlan(data);
-    const nextPlan: ExperimentPlan = { ...plan, confirmed: true, selectedContributionIds };
-    await this.projects.createSpec(projectId, { ...data, experimentPlan: nextPlan });
-    await this.decisions.record(projectId, 'ACCEPT', 'experiment-plan', { selectedContributionIds });
-    return { saved: true };
+    return this.prisma.$transaction(async (tx) => {
+      const spec = await this.projects.latestSpec(projectId);
+      const data = spec.data as SpecData;
+      const plan = this.readPlan(data);
+      // Persist the scaled feasibility the user saw in Step 4 so the final spec
+      // uses the same numbers (previously only unscaled values were stored).
+      const scaledFeasibility = this.scaleFeasibility(plan, selectedContributionIds);
+      const nextPlan: ExperimentPlan = {
+        ...plan,
+        confirmed: true,
+        selectedContributionIds,
+        feasibility: scaledFeasibility,
+      };
+      const nextSpec = await this.projects.createSpec(projectId, { ...data, experimentPlan: nextPlan });
+      await this.invalidate(projectId, nextSpec.id, 'experiment', tx);
+      await this.decisions.record(projectId, 'ACCEPT', 'experiment-plan', { selectedContributionIds }, tx);
+      return { saved: true };
+    });
+  }
+
+  /** Scales the stored feasibility by the ratio of selected contributions. */
+  private scaleFeasibility(plan: ExperimentPlan, selectedContributionIds: string[]): Record<string, unknown> {
+    const feasibility = plan.feasibility;
+    const total = plan.contributions.length || 1;
+    const ratio = selectedContributionIds.length / total;
+    return {
+      ...feasibility,
+      model_name: String(feasibility.model_name ?? ''),
+      seed_prompts_count: Number(feasibility.seed_prompts_count ?? 0),
+      rounds: Number(feasibility.rounds ?? 0),
+      candidates_count: Number(feasibility.candidates_count ?? 0),
+      vram_needed_gb: Number(feasibility.vram_needed_gb ?? 0),
+      gpu_time_hours: Number(feasibility.gpu_time_hours ?? 0) * ratio,
+      tokens_estimated: Math.round(Number(feasibility.tokens_estimated ?? 0) * ratio),
+      is_feasible: Boolean(feasibility.is_feasible ?? false),
+      explanation: String(feasibility.explanation ?? ''),
+    };
   }
 
   private readPlan(data: SpecData): ExperimentPlan {
     const plan = data.experimentPlan as ExperimentPlan | undefined;
     return plan ?? EMPTY_PLAN;
+  }
+
+  /** Marks the dependency-graph dependents of a node STALE on a spec version. */
+  private async invalidate(projectId: string, specIterationId: string, node: WorkflowNode, tx?: Prisma.TransactionClient) {
+    const client = tx ?? this.prisma;
+    for (const affectedNode of this.dependencyGraph.getAffectedNodes(node)) {
+      await client.specArtifact.upsert({
+        where: { specIterationId_node: { specIterationId, node: affectedNode } },
+        create: { projectId, specIterationId, node: affectedNode, status: 'STALE', data: {} },
+        update: { status: 'STALE' },
+      });
+    }
   }
 
   private toClaimEvidence(raw: unknown): ClaimEvidence {

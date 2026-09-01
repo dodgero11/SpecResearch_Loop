@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, SpecCardType } from '@prisma/client';
+import { DecisionService } from './decision.service';
 import { ExperimentPlan } from './experiment.service';
 import { AI_GATEWAY, AiGateway } from './integrations/ai-gateway.port';
 import { PdfService } from './pdf.service';
@@ -15,6 +16,7 @@ export class FinalSpecService {
     private readonly projects: ProjectService,
     private readonly pdf: PdfService,
     @Inject(AI_GATEWAY) private readonly ai: AiGateway,
+    private readonly decisions: DecisionService,
   ) {}
 
   /** Step 6a: generate the final spec via ai_service and persist it as an artifact. */
@@ -88,18 +90,24 @@ export class FinalSpecService {
 
   /** Step 5c: mark the spec as finalized. */
   async finalize(projectId: string) {
-    const spec = await this.projects.latestSpec(projectId);
-    const data = spec.data as SpecData;
-    await this.projects.createSpec(projectId, { ...data, finalized: true });
-    return { saved: true };
+    return this.prisma.$transaction(async (tx) => {
+      const spec = await this.projects.latestSpec(projectId);
+      const data = spec.data as SpecData;
+      await this.projects.createSpec(projectId, { ...data, finalized: true });
+      await this.decisions.record(projectId, 'ACCEPT', 'finalize', {}, tx);
+      return { saved: true };
+    });
   }
 
   /** Step 6b: confirm the final spec. */
   async confirm(projectId: string) {
-    const spec = await this.projects.latestSpec(projectId);
-    const data = spec.data as SpecData;
-    await this.projects.createSpec(projectId, { ...data, finalConfirmed: true });
-    return { saved: true };
+    return this.prisma.$transaction(async (tx) => {
+      const spec = await this.projects.latestSpec(projectId);
+      const data = spec.data as SpecData;
+      await this.projects.createSpec(projectId, { ...data, finalConfirmed: true });
+      await this.decisions.record(projectId, 'ACCEPT', 'final-spec:confirm', {}, tx);
+      return { saved: true };
+    });
   }
 
   /** Step 6c: export the saved markdown as a PDF. */

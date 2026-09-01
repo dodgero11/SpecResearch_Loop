@@ -22,51 +22,48 @@ describe('DependencyGraphService', () => {
   });
 
   describe('getAffectedNodes', () => {
-    it('changing problem invalidates all downstream nodes', () => {
+    it('changing problem invalidates the node and all downstream nodes', () => {
       const affected = service.getAffectedNodes('problem');
-      expect(affected).toEqual(expect.arrayContaining(['gap', 'contribution', 'claim', 'experiment', 'judge']));
-      expect(affected).not.toContain('problem');
+      expect(affected).toEqual(expect.arrayContaining(['problem', 'gap', 'contribution', 'claim', 'experiment', 'judge']));
       expect(affected).not.toContain('related_work');
-      expect(affected).toHaveLength(5);
+      expect(affected).toHaveLength(6);
     });
 
-    it('changing related_work invalidates gap and all downstream', () => {
+    it('changing related_work invalidates the node, gap, and all downstream', () => {
       const affected = service.getAffectedNodes('related_work');
+      expect(affected).toEqual(expect.arrayContaining(['related_work', 'gap', 'contribution', 'claim', 'experiment', 'judge']));
+      expect(affected).not.toContain('problem');
+      expect(affected).toHaveLength(6);
+    });
+
+    it('changing gap invalidates the node, contribution, claim, experiment, and judge', () => {
+      const affected = service.getAffectedNodes('gap');
       expect(affected).toEqual(expect.arrayContaining(['gap', 'contribution', 'claim', 'experiment', 'judge']));
       expect(affected).not.toContain('problem');
       expect(affected).not.toContain('related_work');
       expect(affected).toHaveLength(5);
     });
 
-    it('changing gap invalidates contribution, claim, experiment, and judge', () => {
-      const affected = service.getAffectedNodes('gap');
+    it('changing contribution invalidates the node, claim, experiment, and judge', () => {
+      const affected = service.getAffectedNodes('contribution');
       expect(affected).toEqual(expect.arrayContaining(['contribution', 'claim', 'experiment', 'judge']));
-      expect(affected).not.toContain('problem');
-      expect(affected).not.toContain('related_work');
-      expect(affected).not.toContain('gap');
       expect(affected).toHaveLength(4);
     });
 
-    it('changing contribution invalidates claim, experiment, and judge', () => {
-      const affected = service.getAffectedNodes('contribution');
+    it('changing claim invalidates the node, experiment, and judge', () => {
+      const affected = service.getAffectedNodes('claim');
       expect(affected).toEqual(expect.arrayContaining(['claim', 'experiment', 'judge']));
       expect(affected).toHaveLength(3);
     });
 
-    it('changing claim invalidates experiment and judge', () => {
-      const affected = service.getAffectedNodes('claim');
-      expect(affected).toEqual(expect.arrayContaining(['experiment', 'judge']));
-      expect(affected).toHaveLength(2);
-    });
-
-    it('changing experiment only invalidates judge', () => {
+    it('changing experiment invalidates the node and judge', () => {
       const affected = service.getAffectedNodes('experiment');
-      expect(affected).toEqual(['judge']);
+      expect(affected).toEqual(['experiment', 'judge']);
     });
 
-    it('changing judge invalidates nothing', () => {
+    it('changing judge invalidates only the judge node', () => {
       const affected = service.getAffectedNodes('judge');
-      expect(affected).toEqual([]);
+      expect(affected).toEqual(['judge']);
     });
   });
 

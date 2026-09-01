@@ -10,9 +10,10 @@ describe('ProjectService', () => {
       },
       specIteration: { create: jest.fn().mockResolvedValue({ id: 'spec-2', projectId: 'project-1', version: 2, data: { gap: 'new' } }) },
       idempotencyRecord: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}) },
-      specArtifact: { create: jest.fn().mockResolvedValue({}) },
+      specArtifact: { findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn().mockResolvedValue({}) },
       specCard: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({}) },
       specCardLink: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({}) },
+      judgeIssue: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({}) },
     };
     return { transaction, prisma: { $transaction: jest.fn((callback: (tx: typeof transaction) => unknown) => callback(transaction)), researchProject: { findMany: jest.fn().mockResolvedValue([]) } } };
   }
@@ -20,8 +21,9 @@ describe('ProjectService', () => {
   function makeService(project: unknown) {
     const { prisma, transaction } = makePrisma(project);
     const dependencyGraph = new DependencyGraphService();
-    const service = new ProjectService(prisma as never, dependencyGraph);
-    return { service, transaction, prisma };
+    const decisions = { record: jest.fn().mockResolvedValue({}) };
+    const service = new ProjectService(prisma as never, dependencyGraph, decisions as never);
+    return { service, transaction, prisma, decisions };
   }
 
   it('creates a new immutable version and invalidates Gap dependents', async () => {
@@ -34,7 +36,7 @@ describe('ProjectService', () => {
 
     expect(result.version).toBe(2);
     expect(transaction.specIteration.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ version: 2 }) }));
-    expect(transaction.specArtifact.create).toHaveBeenCalledTimes(4);
+    expect(transaction.specArtifact.upsert).toHaveBeenCalledTimes(5);
     expect(transaction.idempotencyRecord.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ key: 'request-1' }) }));
   });
 
@@ -55,8 +57,8 @@ describe('ProjectService', () => {
 
     await service.updateNode('project-1', 'problem', 'new problem');
 
-    expect(transaction.specArtifact.create).toHaveBeenCalledTimes(5);
-    const createdNodes = transaction.specArtifact.create.mock.calls.map((call: unknown[]) => (call[0] as { data: { node: string } }).data.node);
+    expect(transaction.specArtifact.upsert).toHaveBeenCalledTimes(6);
+    const createdNodes = transaction.specArtifact.upsert.mock.calls.map((call: unknown[]) => (call[0] as { create: { node: string } }).create.node);
     expect(createdNodes).toEqual(expect.arrayContaining(['gap', 'contribution', 'claim', 'experiment', 'judge']));
   });
 
@@ -68,8 +70,8 @@ describe('ProjectService', () => {
 
     await service.updateNode('project-1', 'contribution', 'new contribution');
 
-    expect(transaction.specArtifact.create).toHaveBeenCalledTimes(3);
-    const createdNodes = transaction.specArtifact.create.mock.calls.map((call: unknown[]) => (call[0] as { data: { node: string } }).data.node);
+    expect(transaction.specArtifact.upsert).toHaveBeenCalledTimes(4);
+    const createdNodes = transaction.specArtifact.upsert.mock.calls.map((call: unknown[]) => (call[0] as { create: { node: string } }).create.node);
     expect(createdNodes).toEqual(expect.arrayContaining(['claim', 'experiment', 'judge']));
   });
 
@@ -81,8 +83,8 @@ describe('ProjectService', () => {
 
     await service.updateNode('project-1', 'claim', 'new claim');
 
-    expect(transaction.specArtifact.create).toHaveBeenCalledTimes(2);
-    const createdNodes = transaction.specArtifact.create.mock.calls.map((call: unknown[]) => (call[0] as { data: { node: string } }).data.node);
+    expect(transaction.specArtifact.upsert).toHaveBeenCalledTimes(3);
+    const createdNodes = transaction.specArtifact.upsert.mock.calls.map((call: unknown[]) => (call[0] as { create: { node: string } }).create.node);
     expect(createdNodes).toEqual(expect.arrayContaining(['experiment', 'judge']));
   });
 
@@ -94,9 +96,9 @@ describe('ProjectService', () => {
 
     await service.updateNode('project-1', 'experiment', 'new experiment');
 
-    expect(transaction.specArtifact.create).toHaveBeenCalledTimes(1);
-    const createdNodes = transaction.specArtifact.create.mock.calls.map((call: unknown[]) => (call[0] as { data: { node: string } }).data.node);
-    expect(createdNodes).toEqual(['judge']);
+    expect(transaction.specArtifact.upsert).toHaveBeenCalledTimes(2);
+    const createdNodes = transaction.specArtifact.upsert.mock.calls.map((call: unknown[]) => (call[0] as { create: { node: string } }).create.node);
+    expect(createdNodes).toEqual(['experiment', 'judge']);
   });
 
   it('does not create artifacts for invalid node names', async () => {
@@ -107,7 +109,7 @@ describe('ProjectService', () => {
 
     await service.updateNode('project-1', 'custom-field', 'value');
 
-    expect(transaction.specArtifact.create).not.toHaveBeenCalled();
+    expect(transaction.specArtifact.upsert).not.toHaveBeenCalled();
   });
 
   it('invalidates gap and downstream when related_work changes', async () => {
@@ -118,8 +120,8 @@ describe('ProjectService', () => {
 
     await service.updateNode('project-1', 'related_work', ['new']);
 
-    expect(transaction.specArtifact.create).toHaveBeenCalledTimes(5);
-    const createdNodes = transaction.specArtifact.create.mock.calls.map((call: unknown[]) => (call[0] as { data: { node: string } }).data.node);
+    expect(transaction.specArtifact.upsert).toHaveBeenCalledTimes(6);
+    const createdNodes = transaction.specArtifact.upsert.mock.calls.map((call: unknown[]) => (call[0] as { create: { node: string } }).create.node);
     expect(createdNodes).toEqual(expect.arrayContaining(['gap', 'contribution', 'claim', 'experiment', 'judge']));
   });
 
@@ -140,7 +142,7 @@ describe('ProjectService', () => {
   });
 
   it('appends a related work item and invalidates dependents', async () => {
-    const { service, transaction } = makeService({
+    const { service, transaction, decisions } = makeService({
       id: 'project-1',
       latestSpec: { id: 'spec-1', version: 1, data: { relatedWork: [{ paper_title: 'Existing', source_url: 'https://a.com' }] } },
     });
@@ -158,8 +160,9 @@ describe('ProjectService', () => {
         }),
       }),
     }));
-    expect(transaction.specArtifact.create).toHaveBeenCalledTimes(5);
+    expect(transaction.specArtifact.upsert).toHaveBeenCalledTimes(6);
     expect(transaction.idempotencyRecord.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ key: 'rw-1' }) }));
+    expect(decisions.record).toHaveBeenCalledWith('project-1', 'ACCEPT', 'related-work:add', { title: 'New Paper', sourceUrl: 'https://b.com' }, transaction);
   });
 
   it('skips a duplicate related work without creating a new version', async () => {
@@ -172,7 +175,7 @@ describe('ProjectService', () => {
 
     expect(result.version).toBe(1);
     expect(transaction.specIteration.create).not.toHaveBeenCalled();
-    expect(transaction.specArtifact.create).not.toHaveBeenCalled();
+    expect(transaction.specArtifact.upsert).not.toHaveBeenCalled();
   });
 
   it('appends when relatedWork is absent', async () => {
@@ -192,7 +195,7 @@ describe('ProjectService', () => {
     }));
   });
   it('removes a related work by id and invalidates dependents', async () => {
-    const { service, transaction } = makeService({
+    const { service, transaction, decisions } = makeService({
       id: 'project-1',
       latestSpec: { id: 'spec-1', version: 1, data: { relatedWork: [{ id: 'rw-1', paper_title: 'A', source_url: 'https://a.com' }, { id: 'rw-2', paper_title: 'B', source_url: 'https://b.com' }] } },
     });
@@ -207,7 +210,8 @@ describe('ProjectService', () => {
         }),
       }),
     }));
-    expect(transaction.specArtifact.create).toHaveBeenCalledTimes(5);
+    expect(transaction.specArtifact.upsert).toHaveBeenCalledTimes(6);
+    expect(decisions.record).toHaveBeenCalledWith('project-1', 'ACCEPT', 'related-work:remove', { workId: 'rw-1' }, transaction);
   });
 
   it('removeRelatedWork throws NotFound for an unknown work', async () => {

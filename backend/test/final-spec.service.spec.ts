@@ -8,11 +8,13 @@ describe('FinalSpecService', () => {
     decisionLog: { findMany: jest.fn() },
     clarification: { findUnique: jest.fn() },
     specArtifact: { upsert: jest.fn(), findUnique: jest.fn() },
+    $transaction: jest.fn(),
   };
   const projects = { latestSpec: jest.fn(), createSpec: jest.fn() };
   const pdf = { render: jest.fn() };
   const ai = { finalSpec: jest.fn() };
-  const service = new FinalSpecService(prisma as never, projects as never, pdf as never, ai as never);
+  const decisions = { record: jest.fn().mockResolvedValue({}) };
+  const service = new FinalSpecService(prisma as never, projects as never, pdf as never, ai as never, decisions as never);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -59,10 +61,16 @@ describe('FinalSpecService', () => {
   it('confirm marks the spec as finalConfirmed', async () => {
     projects.latestSpec.mockResolvedValue({ id: 'spec-1', version: 1, data: {} });
     projects.createSpec.mockResolvedValue({});
+    const tx = {
+      decisionLog: { create: jest.fn().mockResolvedValue({}) },
+      researchProject: { findUnique: jest.fn().mockResolvedValue({ id: 'project-1' }) },
+    };
+    prisma.$transaction.mockImplementation((cb: (t: typeof tx) => unknown) => cb(tx));
 
     const result = await service.confirm('project-1');
 
     expect(projects.createSpec).toHaveBeenCalledWith('project-1', { finalConfirmed: true });
+    expect(decisions.record).toHaveBeenCalledWith('project-1', 'ACCEPT', 'final-spec:confirm', {}, tx);
     expect(result).toEqual({ saved: true });
   });
 
@@ -116,10 +124,16 @@ describe('FinalSpecService', () => {
   it('finalize marks the spec as finalized', async () => {
     projects.latestSpec.mockResolvedValue({ id: 'spec-1', version: 1, data: {} });
     projects.createSpec.mockResolvedValue({});
+    const tx = {
+      decisionLog: { create: jest.fn().mockResolvedValue({}) },
+      researchProject: { findUnique: jest.fn().mockResolvedValue({ id: 'project-1' }) },
+    };
+    prisma.$transaction.mockImplementation((cb: (t: typeof tx) => unknown) => cb(tx));
 
     const result = await service.finalize('project-1');
 
     expect(projects.createSpec).toHaveBeenCalledWith('project-1', { finalized: true });
+    expect(decisions.record).toHaveBeenCalledWith('project-1', 'ACCEPT', 'finalize', {}, tx);
     expect(result).toEqual({ saved: true });
   });
 });

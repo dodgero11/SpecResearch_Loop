@@ -5,12 +5,14 @@ describe('ClarifyService', () => {
     researchProject: { findUnique: jest.fn() },
     clarification: { upsert: jest.fn(), findUnique: jest.fn() },
     confirmationQuestion: { create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), deleteMany: jest.fn(), findMany: jest.fn() },
+    $transaction: jest.fn(),
   };
   const ai = {
     understandIdea: jest.fn(),
     generateQuestions: jest.fn(),
   };
-  const service = new ClarifyService(prisma as never, ai as never);
+  const decisions = { record: jest.fn().mockResolvedValue({}) };
+  const service = new ClarifyService(prisma as never, ai as never, decisions as never);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -67,22 +69,54 @@ describe('ClarifyService', () => {
     expect(ai.generateQuestions).not.toHaveBeenCalled();
   });
 
-  it('answer saves selectedIndex and customAnswer without calling ai_service', async () => {
-    prisma.confirmationQuestion.findFirst.mockResolvedValue({ id: 'q1', projectId: 'project-1' });
-    prisma.confirmationQuestion.update.mockResolvedValue({ id: 'q1' });
+  it('answer saves selectedIndex, customAnswer, and the answer column without calling ai_service', async () => {
+    const tx = {
+      confirmationQuestion: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'q1', projectId: 'project-1', options: ['A', 'B', 'C', 'Other'] }),
+        update: jest.fn().mockResolvedValue({ id: 'q1' }),
+      },
+      decisionLog: { create: jest.fn().mockResolvedValue({}) },
+      researchProject: { findUnique: jest.fn().mockResolvedValue({ id: 'project-1' }) },
+    };
+    prisma.$transaction.mockImplementation((cb: (t: typeof tx) => unknown) => cb(tx));
 
     const result = await service.answer('project-1', [{ questionId: 'q1', selectedIndex: 2, customAnswer: 'khác' }]);
 
-    expect(prisma.confirmationQuestion.update).toHaveBeenCalledWith({
+    expect(tx.confirmationQuestion.update).toHaveBeenCalledWith({
       where: { id: 'q1' },
-      data: expect.objectContaining({ selectedIndex: 2, customAnswer: 'khác' }),
+      data: expect.objectContaining({ selectedIndex: 2, customAnswer: 'khác', answer: 'khác' }),
     });
+    expect(decisions.record).toHaveBeenCalledWith('project-1', 'ACCEPT', 'clarify-answers', { answers: [{ questionId: 'q1', selectedIndex: 2, customAnswer: 'khác' }] }, tx);
     expect(ai.understandIdea).not.toHaveBeenCalled();
     expect(result).toEqual({ saved: true });
   });
 
+  it('answer falls back to the selected option when no custom answer is provided', async () => {
+    const tx = {
+      confirmationQuestion: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'q1', projectId: 'project-1', options: ['A', 'B', 'C', 'Other'] }),
+        update: jest.fn().mockResolvedValue({ id: 'q1' }),
+      },
+      decisionLog: { create: jest.fn().mockResolvedValue({}) },
+      researchProject: { findUnique: jest.fn().mockResolvedValue({ id: 'project-1' }) },
+    };
+    prisma.$transaction.mockImplementation((cb: (t: typeof tx) => unknown) => cb(tx));
+
+    await service.answer('project-1', [{ questionId: 'q1', selectedIndex: 1 }]);
+
+    expect(tx.confirmationQuestion.update).toHaveBeenCalledWith({
+      where: { id: 'q1' },
+      data: expect.objectContaining({ selectedIndex: 1, answer: 'B' }),
+    });
+  });
+
   it('answer throws NotFound for an unknown question', async () => {
-    prisma.confirmationQuestion.findFirst.mockResolvedValue(null);
+    const tx = {
+      confirmationQuestion: { findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() },
+      decisionLog: { create: jest.fn().mockResolvedValue({}) },
+      researchProject: { findUnique: jest.fn().mockResolvedValue({ id: 'project-1' }) },
+    };
+    prisma.$transaction.mockImplementation((cb: (t: typeof tx) => unknown) => cb(tx));
 
     await expect(service.answer('project-1', [{ questionId: 'nope', selectedIndex: 0 }])).rejects.toThrow(
       'Confirmation question nope was not found',

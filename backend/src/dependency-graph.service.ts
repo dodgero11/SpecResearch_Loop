@@ -47,7 +47,7 @@ export class DependencyGraphService {
   }
 
   getAffectedNodes(node: WorkflowNode): WorkflowNode[] {
-    const affected = new Set<WorkflowNode>();
+    const affected = new Set<WorkflowNode>([node]);
     const queue: WorkflowNode[] = this.getDependents(node);
     for (const dependent of queue) {
       if (!affected.has(dependent)) {

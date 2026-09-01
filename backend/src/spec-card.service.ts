@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, SpecCardLinkType, SpecCardStatus, SpecCardType } from '@prisma/client';
+import { DecisionService } from './decision.service';
 import { DependencyGraphService } from './dependency-graph.service';
 import { PrismaService } from './prisma.service';
 
@@ -16,6 +17,7 @@ export class SpecCardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly dependencyGraph: DependencyGraphService,
+    private readonly decisions: DecisionService,
   ) {}
 
   async list(projectId: string, specIterationId?: string) {
@@ -73,6 +75,12 @@ export class SpecCardService {
         });
         cards.push(card);
       }
+      // Decompose creates many seed cards at once — invalidate each distinct
+      // card type's downstream nodes so the workflow reflects the new cards.
+      const cardTypes = new Set(inputs.map((input) => input.type));
+      for (const cardType of cardTypes) {
+        await this.invalidateForCardType(transaction, projectId, spec.id, cardType);
+      }
       return { specIterationId: spec.id, specVersion: spec.version, cards };
     });
   }
@@ -97,6 +105,20 @@ export class SpecCardService {
         },
       });
       await this.invalidateForCardType(transaction, projectId, spec.id, currentCard.type);
+      // A type change also invalidates the NEW type's downstream nodes.
+      if (input.type && input.type !== currentCard.type) {
+        await this.invalidateForCardType(transaction, projectId, spec.id, input.type);
+      }
+      // Log card status changes as human decisions.
+      if (input.status && input.status !== currentCard.status) {
+        await this.decisions.record(
+          projectId,
+          'ACCEPT',
+          `card-status:${cardId}`,
+          { oldStatus: currentCard.status, newStatus: input.status },
+          transaction,
+        );
+      }
       const result = { specIterationId: spec.id, specVersion: spec.version, card };
       await this.saveIdempotency(transaction, projectId, idempotencyKey, 'update-card', result);
       return result;
@@ -114,6 +136,7 @@ export class SpecCardService {
       const clonedCardId = cardMap.get(cardId);
       if (!clonedCardId) throw new NotFoundException(`Spec card ${cardId} is not part of the latest specification`);
       await transaction.specCard.delete({ where: { id: clonedCardId } });
+      await this.invalidateForCardType(transaction, projectId, spec.id, currentCard.type);
       const result = { specIterationId: spec.id, specVersion: spec.version, deletedCardId: cardId };
       await this.saveIdempotency(transaction, projectId, idempotencyKey, 'remove-card', result);
       return result;
@@ -131,6 +154,13 @@ export class SpecCardService {
       if (!currentIds.has(sourceCardId) || !currentIds.has(targetCardId)) {
         throw new BadRequestException('Both cards must belong to the latest specification');
       }
+      const sourceCard = currentCards.find((card) => card.id === sourceCardId);
+      const existingLink = await transaction.specCardLink.findFirst({
+        where: { projectId, specIterationId: current.id, sourceCardId, targetCardId, type },
+      });
+      if (existingLink) {
+        return { specIterationId: current.id, specVersion: current.version, link: existingLink };
+      }
       const { spec, cardMap } = await this.cloneLatest(transaction, projectId);
       const link = await transaction.specCardLink.create({
         data: {
@@ -141,6 +171,9 @@ export class SpecCardService {
           type,
         },
       });
+      if (sourceCard) {
+        await this.invalidateForCardType(transaction, projectId, spec.id, sourceCard.type);
+      }
       const result = { specIterationId: spec.id, specVersion: spec.version, link };
       await this.saveIdempotency(transaction, projectId, idempotencyKey, 'create-card-link', result);
       return result;
@@ -154,6 +187,9 @@ export class SpecCardService {
       const current = await this.getSpec(projectId);
       const currentLink = await transaction.specCardLink.findFirst({ where: { id: linkId, projectId, specIterationId: current.id } });
       if (!currentLink) throw new NotFoundException(`Card link ${linkId} was not found`);
+      const sourceCard = await transaction.specCard.findFirst({
+        where: { id: currentLink.sourceCardId, projectId, specIterationId: current.id },
+      });
       const { spec, cardMap } = await this.cloneLatest(transaction, projectId);
       const clonedLink = await transaction.specCardLink.findFirst({
         where: {
@@ -166,6 +202,9 @@ export class SpecCardService {
       });
       if (!clonedLink) throw new NotFoundException(`Card link ${linkId} could not be copied to the new specification`);
       await transaction.specCardLink.delete({ where: { id: clonedLink.id } });
+      if (sourceCard) {
+        await this.invalidateForCardType(transaction, projectId, spec.id, sourceCard.type);
+      }
       const result = { specIterationId: spec.id, specVersion: spec.version, deletedLinkId: linkId };
       await this.saveIdempotency(transaction, projectId, idempotencyKey, 'remove-card-link', result);
       return result;
@@ -182,8 +221,21 @@ export class SpecCardService {
     if (!node) return;
     const affectedNodes = this.dependencyGraph.getAffectedNodes(node);
     for (const affectedNode of affectedNodes) {
-      await transaction.specArtifact.create({
-        data: { projectId, specIterationId, node: affectedNode, status: 'STALE', data: {} },
+      await transaction.specArtifact.upsert({
+        where: {
+          specIterationId_node: {
+            specIterationId,
+            node: affectedNode,
+          },
+        },
+        create: {
+          projectId,
+          specIterationId,
+          node: affectedNode,
+          status: 'STALE',
+          data: {},
+        },
+        update: { status: 'STALE' },
       });
     }
   }
@@ -218,19 +270,57 @@ export class SpecCardService {
           isSeed: card.isSeed,
           reason: card.reason,
           metadata: card.metadata as Prisma.InputJsonValue | undefined,
+          createdAt: card.createdAt,
         },
       });
       cardMap.set(card.id, clone.id);
     }
     const links = await transaction.specCardLink.findMany({ where: { projectId, specIterationId: current.id } });
     for (const link of links) {
+      const sourceId = cardMap.get(link.sourceCardId);
+      const targetId = cardMap.get(link.targetCardId);
+      if (!sourceId || !targetId) continue; // skip orphan links
       await transaction.specCardLink.create({
         data: {
           projectId,
           specIterationId: spec.id,
-          sourceCardId: cardMap.get(link.sourceCardId)!,
-          targetCardId: cardMap.get(link.targetCardId)!,
+          sourceCardId: sourceId,
+          targetCardId: targetId,
           type: link.type,
+        },
+      });
+    }
+    // Clone spec artifacts forward so invalidation state and the final-spec
+    // artifact survive version bumps.
+    const artifacts = await transaction.specArtifact.findMany({ where: { projectId, specIterationId: current.id } });
+    for (const artifact of artifacts) {
+      await transaction.specArtifact.create({
+        data: {
+          projectId,
+          specIterationId: spec.id,
+          node: artifact.node,
+          status: artifact.status,
+          data: artifact.data as Prisma.InputJsonValue,
+        },
+      });
+    }
+    // Clone judge issues forward so they survive version bumps.
+    const issues = await transaction.judgeIssue.findMany({ where: { projectId, specIterationId: current.id } });
+    for (const issue of issues) {
+      await transaction.judgeIssue.create({
+        data: {
+          projectId,
+          specIterationId: spec.id,
+          judgeType: issue.judgeType,
+          severity: issue.severity,
+          title: issue.title,
+          description: issue.description,
+          suggestion: issue.suggestion,
+          flaggedBy: issue.flaggedBy,
+          choices: issue.choices as Prisma.InputJsonValue,
+          status: issue.status,
+          resolvedChoice: issue.resolvedChoice,
+          customResolution: issue.customResolution,
         },
       });
     }

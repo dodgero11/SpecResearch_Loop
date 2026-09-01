@@ -104,6 +104,9 @@ export class JudgeService {
       judges: results,
     };
     await this.persistIssues(projectId, panel.specVersionUsed, results);
+    if (panel.status === "COMPLETED") {
+      await this.persistJudgeArtifact(projectId, panel.specVersionUsed, results);
+    }
     return panel;
   }
 
@@ -146,6 +149,9 @@ export class JudgeService {
         judges,
       };
       await this.persistIssues(projectId, panel.specVersionUsed, judges);
+      if (panel.status === "COMPLETED") {
+        await this.persistJudgeArtifact(projectId, panel.specVersionUsed, judges);
+      }
       return panel;
     } catch (error) {
       const message = this.errorMessage(error);
@@ -207,7 +213,11 @@ export class JudgeService {
     });
   }
 
-  /** Persists judge issues as stable JudgeIssue rows so the frontend can resolve them by id. */
+  /**
+   * Persists judge issues as stable JudgeIssue rows so the frontend can resolve
+   * them by id. Delete-then-recreate happens PER judge type: a failed judge keeps
+   * its previously persisted issues instead of losing them to a blanket delete.
+   */
   private async persistIssues(
     projectId: string,
     specVersion: number,
@@ -217,15 +227,17 @@ export class JudgeService {
       where: { projectId, version: specVersion },
     });
     if (!spec) return;
-    await this.prisma.judgeIssue.deleteMany({
-      where: {
-        projectId,
-        specIterationId: spec.id,
-        status: { not: "RESOLVED" },
-      },
-    });
     for (const result of results) {
-      if (result.status !== "COMPLETED" || !result.output) continue;
+      if (result.status !== "COMPLETED") continue;
+      await this.prisma.judgeIssue.deleteMany({
+        where: {
+          projectId,
+          specIterationId: spec.id,
+          judgeType: result.type,
+          status: { not: "RESOLVED" },
+        },
+      });
+      if (!result.output) continue;
       const issues = Array.isArray(result.output.issues)
         ? result.output.issues
         : [];
@@ -248,6 +260,36 @@ export class JudgeService {
         });
       }
     }
+  }
+
+  /**
+   * Marks the judge node FRESH after a successful panel run and persists the
+   * per-judge verdicts in the judge artifact's data (so they survive the HTTP
+   * response instead of being lost).
+   */
+  private async persistJudgeArtifact(
+    projectId: string,
+    specVersion: number,
+    results: JudgeResult[],
+  ): Promise<void> {
+    const spec = await this.prisma.specIteration.findFirst({
+      where: { projectId, version: specVersion },
+    });
+    if (!spec) return;
+    await this.prisma.specArtifact.upsert({
+      where: { specIterationId_node: { specIterationId: spec.id, node: "judge" } },
+      create: {
+        projectId,
+        specIterationId: spec.id,
+        node: "judge",
+        status: "FRESH",
+        data: { judges: results } as Prisma.InputJsonValue,
+      },
+      update: {
+        status: "FRESH",
+        data: { judges: results } as Prisma.InputJsonValue,
+      },
+    });
   }
 
   private errorMessage(error: unknown): string {

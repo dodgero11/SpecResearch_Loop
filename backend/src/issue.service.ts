@@ -37,23 +37,28 @@ export class IssueService {
   async resolve(projectId: string, issueId: string, choice: string, customChoice?: string) {
     const issue = await this.prisma.judgeIssue.findFirst({ where: { id: issueId, projectId } });
     if (!issue) throw new NotFoundException(`Issue ${issueId} was not found`);
-    const updatedIssue = await this.prisma.judgeIssue.update({
-      where: { id: issueId },
-      data: { status: 'RESOLVED', resolvedChoice: choice, customResolution: customChoice },
-    });
     const judgeType = issue.judgeType as JudgeType;
     const invalidatedNodes = this.dependencyGraph.getAffectedNodes(JUDGE_NODE[judgeType]);
-    // Mark affected nodes STALE so downstream artifacts are flagged for review.
     const spec = await this.projects.latestSpec(projectId);
-    for (const node of invalidatedNodes) {
-      await this.prisma.specArtifact.upsert({
-        where: { specIterationId_node: { specIterationId: spec.id, node } },
-        create: { projectId, specIterationId: spec.id, node, status: 'STALE', data: {} },
-        update: { status: 'STALE' },
+    // DB writes (update issue + upsert STALE artifacts + record decision) are
+    // atomic. The judge re-run is an external AI call and runs after commit.
+    const updatedIssue = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.judgeIssue.update({
+        where: { id: issueId },
+        data: { status: 'RESOLVED', resolvedChoice: choice, customResolution: customChoice },
       });
-    }
+      for (const node of invalidatedNodes) {
+        await tx.specArtifact.upsert({
+          where: { specIterationId_node: { specIterationId: spec.id, node } },
+          create: { projectId, specIterationId: spec.id, node, status: 'STALE', data: {} },
+          update: { status: 'STALE' },
+        });
+      }
+      await this.decisions.record(projectId, 'ACCEPT', `issue:${issueId}`, { choice, customChoice }, tx);
+      return updated;
+    });
+    // If the judge fails, the issue is still resolved (the user already chose).
     const judgeResult = await this.judges.runJudge(projectId, judgeType);
-    await this.decisions.record(projectId, 'ACCEPT', `issue:${issueId}`, { choice, customChoice });
     return { updatedIssue, invalidatedNodes, judgeResult };
   }
 }
