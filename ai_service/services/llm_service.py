@@ -659,7 +659,7 @@ Answers: {json.dumps(context.get('answers', []), ensure_ascii=False)}
     # ==========================================
 
     def process_step2_related_works(self, problem: str, research_question: str, papers: List[Dict[str, Any]]) -> RelatedWorksResponse:
-        """Step 3a: Synthesize comparative related works analysis and gap options."""
+        """Step 3a: Synthesize comparative related works analysis and gap options from retrieved arXiv papers."""
         papers_context = ""
         for i, p in enumerate(papers, 1):
             papers_context += f"""
@@ -690,6 +690,30 @@ Papers:
 {papers_context}
 """
         return self.call_gemini_structured(prompt, RelatedWorksResponse, context={"problem": problem, "research_question": research_question, "papers": papers})
+
+    def process_step2_related_works_direct(self, problem: str, research_question: str, query: str) -> RelatedWorksResponse:
+        """Step 3a fallback: Synthesize real, seminal related works directly via LLM when ArXiv API is slow/unavailable."""
+        prompt = f"""
+System: You are the Related Work & Literature Review Agent in SpecResearch Loop.
+Synthesize a comprehensive related works comparison table with 3 to 4 real, seminal academic papers relevant to:
+Problem: {problem}
+Research Question: {research_question}
+Keywords/Query: {query}
+
+Requirements:
+1. Provide 3-4 real published academic papers (e.g., famous works such as OPRO, TextGrad, PromptBreeder, DSPy, Chain-of-Thought, ReAct, Reflexion, etc.):
+   - paper_title: Real published paper title (e.g. "OPRO: Optimization by PROmpting")
+   - authors: Real author string (e.g. "Yang et al.")
+   - year: Publication year (2022-2024)
+   - what_they_did: Detailed description in Vietnamese of what the authors did
+   - feedback: Critical academic feedback in Vietnamese
+   - missing_points: Limitations in Vietnamese
+   - source_url: Real link (e.g. "https://arxiv.org/abs/2309.03409")
+   - source_type: "proceedings" | "preprint" | "peer-reviewed"
+2. Propose 3-4 gap directions (ProposedGapOption) with gap_title, description in Vietnamese, and options with allow_other=True.
+"""
+        return self.call_gemini_structured(prompt, RelatedWorksResponse, context={"problem": problem, "research_question": research_question, "query": query})
+
 
     def process_step2_gap_analysis(self, gap_candidate: str, related_works: List[Any]) -> GapAnalysisResponse:
         """Step 3b: Gap analysis + 4 focus directions A, B, C, D."""

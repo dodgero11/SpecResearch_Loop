@@ -184,22 +184,39 @@ async def get_related_works(
     llm: LlmService = Depends(get_llm_service)
 ):
     """
-    Step 3a: Tải và tổng hợp danh sách bài báo khoa học liên quan từ arXiv API.
+    Step 3a: Tải và tổng hợp danh sách bài báo khoa học liên quan từ arXiv API (timeout 6s)
+    hoặc tự động chuyển sang LLM-guided synthesis nếu ArXiv API chậm/nghẽn mạng.
     """
     arxiv_srv = ensure_arxiv(arxiv_srv)
     llm = ensure_llm(llm)
     search_query = payload.keywords[0] if (payload.keywords and len(payload.keywords) > 0) else payload.research_question
 
+    raw_papers = []
     if not get_use_mock_ai():
         try:
-            raw_papers = arxiv_srv.search_raw_papers(query=search_query, max_results=4)
-            if raw_papers and llm.api_key:
-                res = llm.process_step2_related_works(payload.problem, payload.research_question, raw_papers)
-                return RelatedWorksOnlyResponse(related_works=res.related_works)
+            raw_papers = arxiv_srv.search_raw_papers(query=search_query, max_results=4, timeout_sec=6.0)
         except Exception as e:
-            print(f"[Fallback to Mock] related-works failed: {e}")
+            print(f"[Warning] ArXiv query error ({e}), falling back to direct LLM synthesis...", flush=True)
+            raw_papers = []
 
-    # Fallback / Mock
+    # If raw_papers found from arXiv, synthesize them with LLM
+    if raw_papers and llm.api_key and not get_use_mock_ai():
+        try:
+            res = llm.process_step2_related_works(payload.problem, payload.research_question, raw_papers)
+            return RelatedWorksOnlyResponse(related_works=res.related_works)
+        except Exception as e:
+            print(f"[Warning] LLM processing of arXiv papers failed ({e}). Trying direct synthesis...", flush=True)
+
+    # If ArXiv failed/timed out OR raw_papers is empty, synthesize real seminal papers directly with Gemini
+    if llm.api_key and not get_use_mock_ai():
+        try:
+            print("[Notice] Synthesizing related works directly via LLM...", flush=True)
+            res = llm.process_step2_related_works_direct(payload.problem, payload.research_question, search_query)
+            return RelatedWorksOnlyResponse(related_works=res.related_works)
+        except Exception as e:
+            print(f"[Fallback to Mock] direct related-works synthesis failed: {e}", flush=True)
+
+    # Final Fallback / Mock
     return RelatedWorksOnlyResponse(
         related_works=[
             RelatedWorkItem(

@@ -7,7 +7,7 @@ export type RuntimeConfig = {
   AI_SERVICE_TIMEOUT_MS: number;
 };
 
-export const DEFAULT_AI_SERVICE_TIMEOUT_MS = 30_000;
+export const DEFAULT_AI_SERVICE_TIMEOUT_MS = 90_000;
 
 export function getRequiredConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig {
   const databaseUrl = env.DATABASE_URL?.trim();

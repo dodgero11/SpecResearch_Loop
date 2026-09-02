@@ -37,7 +37,7 @@ export class HttpLlmAdapter implements LlmPort {
   private async callPanel(inputContext: Record<string, unknown>): Promise<Record<string, unknown>> {
     const url = `${this.baseUrl.replace(/\/+$/, '')}${PANEL_ENDPOINT}`;
     const startedAt = Date.now();
-    this.logger.log(`→ AI call ${PANEL_ENDPOINT} (${url})`);
+    this.logger.log(`→ AI call ${PANEL_ENDPOINT} (${url}) [timeout: ${this.timeoutMs}ms]`);
     let response: Response;
     try {
       response = await fetch(url, {
@@ -70,10 +70,10 @@ export class HttpLlmAdapter implements LlmPort {
     return payload as Record<string, unknown>;
   }
 
-  private describe(error: unknown): string {
+  private describe(error: unknown, timeoutMs: number = this.timeoutMs): string {
     if (error instanceof Error) {
       return error.name === 'TimeoutError' || error.name === 'AbortError'
-        ? `timed out after ${this.timeoutMs}ms`
+        ? `timed out after ${timeoutMs}ms`
         : error.message;
     }
     return String(error);

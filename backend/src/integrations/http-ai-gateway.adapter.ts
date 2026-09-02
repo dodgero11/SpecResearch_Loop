@@ -63,20 +63,21 @@ export class HttpAiGateway implements AiGateway {
     return this.call('/ai/v1/conflicts/check', { claim_evidence_pairs: claimEvidencePairs, related_works: relatedWorks });
   }
 
-  private async call(path: string, body: Record<string, unknown>): Promise<AiGatewayResponse> {
+  private async call(path: string, body: Record<string, unknown>, customTimeoutMs?: number): Promise<AiGatewayResponse> {
+    const timeout = customTimeoutMs || this.timeoutMs;
     const url = `${this.baseUrl.replace(/\/+$/, '')}${path}`;
     const startedAt = Date.now();
-    this.logger.log(`→ AI call ${path} (${url})`);
+    this.logger.log(`→ AI call ${path} (${url}) [timeout: ${timeout}ms]`);
     let response: Response;
     try {
       response = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(this.timeoutMs),
+        signal: AbortSignal.timeout(timeout),
       });
     } catch (error) {
-      const detail = this.describe(error);
+      const detail = this.describe(error, timeout);
       this.logger.error(`✗ AI call ${path} failed after ${Date.now() - startedAt}ms: ${detail}`);
       throw new Error(`AI service request to ${url} failed: ${detail}`);
     }
@@ -99,10 +100,10 @@ export class HttpAiGateway implements AiGateway {
     return { output: payload as Record<string, unknown> };
   }
 
-  private describe(error: unknown): string {
+  private describe(error: unknown, timeoutMs: number = this.timeoutMs): string {
     if (error instanceof Error) {
       return error.name === 'TimeoutError' || error.name === 'AbortError'
-        ? `timed out after ${this.timeoutMs}ms`
+        ? `timed out after ${timeoutMs}ms`
         : error.message;
     }
     return String(error);

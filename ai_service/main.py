@@ -1,8 +1,31 @@
 import os
+import sys
+import logging
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+
+# Ensure stdout and stderr are unbuffered for real-time console logging
+os.environ["PYTHONUNBUFFERED"] = "1"
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(line_buffering=True, write_through=True)
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(line_buffering=True, write_through=True)
+    except Exception:
+        pass
+
+# Configure root logger with immediate flush to stdout
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True,
+)
 
 # Load environment variables
 load_dotenv()
@@ -45,4 +68,6 @@ async def health():
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     host = os.getenv("HOST", "0.0.0.0")
-    uvicorn.run("main:app", host=host, port=port, reload=True)
+    print(f"[AI Service] Starting FastAPI server on {host}:{port} with real-time log output...", flush=True)
+    uvicorn.run("main:app", host=host, port=port, reload=True, log_level="info")
+
