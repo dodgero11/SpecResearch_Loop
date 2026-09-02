@@ -42,7 +42,18 @@ export class HttpAiGateway implements AiGateway {
   }
 
   async finalSpec(payload: Record<string, unknown>): Promise<AiGatewayResponse> {
-    return this.call('/ai/v1/final-spec', payload);
+    const res = await this.call('/ai/v1/final-spec', payload);
+    const data = res.output;
+    const normalizedOutput: Record<string, unknown> = {
+      ...data,
+      markdownContent: data.markdownContent || data.markdown_content || '# Research Specification',
+      markdown_content: data.markdown_content || data.markdownContent || '# Research Specification',
+      specJson: (data.specJson || data.spec_json || {}) as Record<string, unknown>,
+      spec_json: (data.spec_json || data.specJson || {}) as Record<string, unknown>,
+      before: String(data.before || ''),
+      after: String(data.after || ''),
+    };
+    return { ...res, output: normalizedOutput };
   }
 
   async conflicts(claimEvidencePairs: unknown[], relatedWorks: unknown[]): Promise<AiGatewayResponse> {

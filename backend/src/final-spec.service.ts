@@ -53,20 +53,27 @@ export class FinalSpecService {
       judges_summary: judgesSummary,
       decision_log: decisions,
     });
-    const output = response.output;
-    const markdownContent = String(output.markdown_content ?? '');
-    const specJson = (output.spec_json ?? {}) as Record<string, unknown>;
+    const output = response.output ?? {};
+    const markdownContent = String(output.markdownContent ?? output.markdown_content ?? '# Research Specification');
+    const specJson = (output.specJson ?? output.spec_json ?? {}) as Record<string, unknown>;
     const artifactData = { markdownContent, specJson } as Prisma.InputJsonValue;
-    await this.prisma.specArtifact.upsert({
-      where: { specIterationId_node: { specIterationId: spec.id, node: FINAL_SPEC_NODE } },
-      create: { projectId, specIterationId: spec.id, node: FINAL_SPEC_NODE, status: 'FRESH', data: artifactData },
-      update: { status: 'FRESH', data: artifactData },
-    });
+
+    try {
+      await this.prisma.specArtifact.upsert({
+        where: { specIterationId_node: { specIterationId: spec.id, node: FINAL_SPEC_NODE } },
+        create: { projectId, specIterationId: spec.id, node: FINAL_SPEC_NODE, status: 'FRESH', data: artifactData },
+        update: { status: 'FRESH', data: artifactData },
+      });
+    } catch (err) {
+      console.error(`[FinalSpecService] Failed to upsert specArtifact for project ${projectId}:`, err);
+      throw err;
+    }
+
     return {
       markdownContent,
       specJson,
-      before: clarification?.idea ?? '',
-      after,
+      before: String(output.before || clarification?.idea || ''),
+      after: String(output.after || after || ''),
     };
   }
 

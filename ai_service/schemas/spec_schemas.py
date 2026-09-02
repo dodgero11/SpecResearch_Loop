@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator, ConfigDict
 from typing import Any, List, Optional, Dict
 from enum import Enum
 
@@ -35,7 +35,7 @@ class SpecCardSchema(BaseModel):
     type: SpecCardType = Field(description="Loại thẻ đặc tả")
     content: str = Field(description="Nội dung thẻ")
     status: SpecCardStatus = Field(default=SpecCardStatus.PROPOSED, description="Trạng thái thẻ")
-    metadata: Optional[dict] = Field(default=None, description="Metadata đi kèm thẻ")
+    metadata: Optional[Dict[str, str]] = Field(default=None, description="Metadata đi kèm thẻ")
 
 # --- Vòng 1: Clarify & Decompose ---
 
@@ -238,5 +238,61 @@ class FinalSpecRequest(BaseModel):
     decision_log: Optional[List[dict]] = Field(default_factory=list, description="Lịch sử các quyết định của người dùng")
 
 class FinalSpecResponse(BaseModel):
-    markdown_content: str = Field(description="Toàn văn bản Research Spec bằng định dạng Markdown")
-    spec_json: dict = Field(description="Bản spec lưu dưới dạng JSON chuẩn")
+    model_config = ConfigDict(populate_by_name=True)
+    markdown_content: str = Field(default="")
+    markdownContent: Optional[str] = Field(default=None)
+    spec_json: dict = Field(default_factory=dict)
+    specJson: Optional[dict] = Field(default=None)
+    before: str = ""
+    after: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        # Extract markdown_content or markdownContent
+        markdown = data.get("markdown_content") or data.get("markdownContent") or ""
+        spec = data.get("spec_json") or data.get("specJson")
+
+        # If spec_json is missing or if Gemini returned a flat object
+        if spec is None or not isinstance(spec, dict):
+            spec = {
+                k: v for k, v in data.items()
+                if k not in ("markdown_content", "markdownContent", "spec_json", "specJson", "before", "after")
+            }
+
+        # Normalize title and core keys inside spec
+        title = (
+            spec.get("title")
+            or spec.get("project_title")
+            or spec.get("project")
+            or data.get("title")
+            or data.get("project_title")
+            or "Research Specification"
+        )
+        spec["title"] = title
+        if "problem" not in spec and "problem" in data:
+            spec["problem"] = data["problem"]
+        if "gap" not in spec and "gap" in data:
+            spec["gap"] = data["gap"]
+        if "contribution" not in spec and "contribution" in data:
+            spec["contribution"] = data["contribution"]
+
+        # If markdown_content is missing, render basic markdown from spec fields
+        if not markdown:
+            problem = spec.get("problem") or data.get("problem") or ""
+            gap = spec.get("gap") or data.get("gap") or ""
+            contribution = spec.get("contribution") or data.get("contribution") or ""
+            markdown = f"# {title}\n\n## 1. Problem Formulation\n{problem}\n\n## 2. Research Gap & Novelty\n{gap}\n\n## 3. Key Contribution\n{contribution}\n"
+
+        return {
+            "markdown_content": markdown,
+            "markdownContent": markdown,
+            "spec_json": spec,
+            "specJson": spec,
+            "before": str(data.get("before", "")),
+            "after": str(data.get("after", ""))
+        }
+

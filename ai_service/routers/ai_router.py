@@ -606,5 +606,9 @@ async def generate_final_spec(payload: FinalSpecRequest, llm: LlmService = Depen
 
     return FinalSpecResponse(
         markdown_content=markdown,
-        spec_json=spec_json
+        markdownContent=markdown,
+        spec_json=spec_json,
+        specJson=spec_json,
+        before=str(payload.problem or "Ý tưởng nghiên cứu"),
+        after=str(payload.contribution or "Bản đặc tả nghiên cứu hoàn thiện")
     )
