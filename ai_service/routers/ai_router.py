@@ -1,3 +1,7 @@
+# [FE-fix] asyncio.to_thread offloads each blocking Gemini SDK call below onto a
+# worker thread, so a slow/retrying call no longer freezes the whole event loop
+# (previously ALL requests, even /health, would hang until that one call finished).
+import asyncio
 import os
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Dict, Any, Optional
@@ -48,7 +52,8 @@ async def clarify_understand(payload: ClarifyUnderstandRequest, llm: LlmService 
     llm = ensure_llm(llm)
     if not get_use_mock_ai() and llm.api_key:
         try:
-            return llm.process_step1_understand(payload.idea, payload.feedback)
+            # [FE-fix] run on a worker thread instead of blocking the event loop
+            return await asyncio.to_thread(llm.process_step1_understand, payload.idea, payload.feedback)
         except Exception as e:
             print(f"[Fallback to Mock] understand failed with Gemini: {e}")
 
@@ -71,7 +76,8 @@ async def clarify_questions(payload: ClarifyQuestionsRequest, llm: LlmService = 
     llm = ensure_llm(llm)
     if not get_use_mock_ai() and llm.api_key:
         try:
-            return llm.process_step1_questions(payload.clarified_idea)
+            # [FE-fix] run on a worker thread instead of blocking the event loop
+            return await asyncio.to_thread(llm.process_step1_questions, payload.clarified_idea)
         except Exception as e:
             print(f"[Fallback to Mock] questions failed with Gemini: {e}")
 
@@ -104,7 +110,8 @@ async def decompose_idea(payload: DecomposeRequest, llm: LlmService = Depends(ge
     llm = ensure_llm(llm)
     if not get_use_mock_ai() and llm.api_key:
         try:
-            return llm.process_step2_decompose(payload.model_dump())
+            # [FE-fix] run on a worker thread instead of blocking the event loop
+            return await asyncio.to_thread(llm.process_step2_decompose, payload.model_dump())
         except Exception as e:
             print(f"[Fallback to Mock] decompose failed with Gemini: {e}")
 
@@ -196,7 +203,8 @@ async def get_related_works(
     search_query = payload.research_question
     if not get_use_mock_ai() and llm.api_key:
         try:
-            kw = llm.generate_search_keywords(payload.problem, payload.research_question, payload.gap)
+            # [FE-fix] run on a worker thread instead of blocking the event loop
+            kw = await asyncio.to_thread(llm.generate_search_keywords, payload.problem, payload.research_question, payload.gap)
             if kw.keywords:
                 search_query = kw.keywords[0]
         except Exception as e:
@@ -213,7 +221,8 @@ async def get_related_works(
     # If raw_papers found from arXiv, synthesize them with LLM
     if raw_papers and llm.api_key and not get_use_mock_ai():
         try:
-            res = llm.process_step2_related_works(payload.problem, payload.research_question, raw_papers)
+            # [FE-fix] run on a worker thread instead of blocking the event loop
+            res = await asyncio.to_thread(llm.process_step2_related_works, payload.problem, payload.research_question, raw_papers)
             return RelatedWorksOnlyResponse(related_works=res.related_works)
         except Exception as e:
             print(f"[Warning] LLM processing of arXiv papers failed ({e}). Trying direct synthesis...", flush=True)
@@ -222,7 +231,8 @@ async def get_related_works(
     if llm.api_key and not get_use_mock_ai():
         try:
             print("[Notice] Synthesizing related works directly via LLM...", flush=True)
-            res = llm.process_step2_related_works_direct(payload.problem, payload.research_question, search_query)
+            # [FE-fix] run on a worker thread instead of blocking the event loop
+            res = await asyncio.to_thread(llm.process_step2_related_works_direct, payload.problem, payload.research_question, search_query)
             return RelatedWorksOnlyResponse(related_works=res.related_works)
         except Exception as e:
             print(f"[Fallback to Mock] direct related-works synthesis failed: {e}", flush=True)
@@ -289,7 +299,13 @@ async def gap_analysis(payload: GapAnalysisRequest, llm: LlmService = Depends(ge
     llm = ensure_llm(llm)
     if not get_use_mock_ai() and llm.api_key:
         try:
-            return llm.process_step2_gap_analysis(payload.gap_candidate, payload.related_works or [], payload.revision_instruction)  # ← thêm tham số cuối
+            # [FE-fix] run on a worker thread instead of blocking the event loop
+            return await asyncio.to_thread(
+                llm.process_step2_gap_analysis,
+                payload.gap_candidate,
+                payload.related_works or [],
+                payload.revision_instruction,
+            )  # ← thêm tham số cuối
         except Exception as e:
             print(f"[Fallback to Mock] gap-analysis failed with Gemini: {e}")
     # Fallback / Mock
@@ -314,7 +330,12 @@ async def check_conflicts(payload: ConflictCheckRequest, llm: LlmService = Depen
     llm = ensure_llm(llm)
     if not get_use_mock_ai() and llm.api_key:
         try:
-            return llm.process_step3_conflicts(payload.claim_evidence_pairs or [], payload.related_works or [])
+            # [FE-fix] run on a worker thread instead of blocking the event loop
+            return await asyncio.to_thread(
+                llm.process_step3_conflicts,
+                payload.claim_evidence_pairs or [],
+                payload.related_works or [],
+            )
         except Exception as e:
             print(f"[Fallback to Mock] conflicts check failed: {e}")
 
@@ -342,7 +363,8 @@ async def spec_experiment(payload: SpecExperimentRequest, llm: LlmService = Depe
     llm = ensure_llm(llm)
     if not get_use_mock_ai() and llm.api_key:
         try:
-            return llm.process_step3_experiment(payload.problem, payload.gap, payload.direction)
+            # [FE-fix] run on a worker thread instead of blocking the event loop
+            return await asyncio.to_thread(llm.process_step3_experiment, payload.problem, payload.gap, payload.direction)
         except Exception as e:
             print(f"[Fallback to Mock] spec-experiment failed with Gemini: {e}")
 
@@ -404,7 +426,8 @@ async def estimate_feasibility(payload: FeasibilityRequest, llm: LlmService = De
     llm = ensure_llm(llm)
     if not get_use_mock_ai() and llm.api_key:
         try:
-            return llm.process_step3_feasibility(payload)
+            # [FE-fix] run on a worker thread instead of blocking the event loop
+            return await asyncio.to_thread(llm.process_step3_feasibility, payload)
         except Exception as e:
             print(f"[Fallback to Mock] feasibility failed with Gemini: {e}")
 
@@ -450,7 +473,8 @@ async def single_claim_experiment(claim_evidence: dict, llm: LlmService = Depend
     llm = ensure_llm(llm)
     if not get_use_mock_ai() and llm.api_key:
         try:
-            return llm.process_step3_single_claim(claim_evidence)
+            # [FE-fix] run on a worker thread instead of blocking the event loop
+            return await asyncio.to_thread(llm.process_step3_single_claim, claim_evidence)
         except Exception as e:
             print(f"[Fallback to Mock] single-claim experiment failed: {e}")
 
@@ -480,7 +504,9 @@ async def run_judges_panel(payload: JudgesPanelRequest, llm: LlmService = Depend
     llm = ensure_llm(llm)
     if not get_use_mock_ai() and llm.api_key:
         try:
-            return llm.process_step4_judges(
+            # [FE-fix] run on a worker thread instead of blocking the event loop
+            return await asyncio.to_thread(
+                llm.process_step4_judges,
                 problem=payload.problem,
                 gap=payload.gap,
                 contribution=payload.contribution or "",
@@ -549,7 +575,11 @@ async def revise_section(payload: ReviseSectionRequest, llm: LlmService = Depend
     llm = ensure_llm(llm)
     if not get_use_mock_ai() and llm.api_key:
         try:
-            return llm.revise_section(
+            # [FE-fix] run on a worker thread instead of blocking the event loop —
+            # this is the endpoint hit by every Step-5 issue resolution now that all
+            # 5 judge types call the AI to revise content, so it's the most-hit path.
+            return await asyncio.to_thread(
+                llm.revise_section,
                 section_type=payload.section_type,
                 current_content=payload.current_content,
                 instruction=payload.instruction,
@@ -576,7 +606,9 @@ async def generate_final_spec(payload: FinalSpecRequest, llm: LlmService = Depen
     llm = ensure_llm(llm)
     if not get_use_mock_ai() and llm.api_key:
         try:
-            return llm.process_step5_final_spec(
+            # [FE-fix] run on a worker thread instead of blocking the event loop
+            return await asyncio.to_thread(
+                llm.process_step5_final_spec,
                 project_title=payload.project_title or "Research Specification",
                 problem=payload.problem or "",
                 gap=payload.gap or "",
