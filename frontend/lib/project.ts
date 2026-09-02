@@ -10,3 +10,9 @@ export function setProjectId(id: string): void {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(STORAGE_KEY, id)
 }
+
+/** Forgets the current project id so the next visit to Bước 1 starts a brand-new project. */
+export function clearProjectId(): void {
+  if (typeof window === 'undefined') return
+  window.localStorage.removeItem(STORAGE_KEY)
+}
