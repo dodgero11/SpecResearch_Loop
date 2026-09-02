@@ -1,0 +1,208 @@
+{
+  "use_case_id": "UC-002",
+  "domain": "Scientific Evidence Verification & Fact Checking",
+  "project_title": "Multi-Agent Verification Pipeline for Eliminating Hallucinated Citations in Scientific Literature",
+  "raw_idea": "Tôi muốn làm một công cụ tự động phát hiện và loại bỏ các trích dẫn tài liệu bịa đặt (hallucinated citations) do LLM sinh ra bằng cách tra cứu API arXiv và đối chiếu ngữ cảnh.",
+  "round_1_clarification": {
+    "clarified_idea": "Hệ thống Multi-Agent AI tự động trích xuất, xác thực và phát hiện trích dẫn khoa học ảo thông qua việc kết nối cơ sở dữ liệu thật (arXiv API, Semantic Scholar) kết hợp mô hình kiểm định ngữ cảnh claim-level trên phần cứng máy trạm tiêu chuẩn.",
+    "key_issues": [
+      "Xử lý các bài báo có nhiều phiên bản (v1, v2) hoặc trích dẫn gián tiếp",
+      "Định nghĩa ngưỡng tự tin (confidence threshold) cho việc xác nhận hoặc bác bỏ trích dẫn",
+      "Đảm bảo thời gian kiểm tra dưới 3 giây cho mỗi bài báo trích dẫn"
+    ],
+    "confidence": 0.95,
+    "questions_and_answers": [
+      {
+        "question": "Nguồn dữ liệu tham chiếu chính nào sẽ được ưu tiên xác thực?",
+        "selected_option": "ArXiv API & Semantic Scholar API",
+        "is_custom": false
+      },
+      {
+        "question": "Mức độ phân rã trích dẫn nào cần hỗ trợ?",
+        "selected_option": "Paper Metadata & Abstract Context Alignment",
+        "is_custom": false
+      },
+      {
+        "question": "Mục tiêu phần cứng thực thi?",
+        "selected_option": "1x NVIDIA RTX 3090 (24GB VRAM)",
+        "is_custom": false
+      }
+    ],
+    "seed_cards": [
+      {
+        "type": "PROBLEM",
+        "content": "Các mô hình ngôn ngữ lớn (LLM) thường xuyên tự bịa đặt tiêu đề bài báo, tên tác giả, năm và mã arXiv khi sinh đề xuất nghiên cứu khoa học (tỷ lệ hallucination lên tới 35%).",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "RESEARCH_QUESTION",
+        "content": "Làm thế nào để xây dựng một quy trình kiểm tra trích dẫn 2 pha (Metadata Retrieval + Semantic Entailment) giúp giảm tỷ lệ trích dẫn ảo về dưới 3%?",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "GAP_CANDIDATE",
+        "content": "Các công cụ Fact-Checking hiện nay (FacTool, RAG-Checker) kiểm tra văn bản tổng quát nhưng chưa chuyên biệt hóa cho siêu dữ liệu bài báo khoa học và chưa có cơ chế Human-in-the-loop đa thẩm phán.",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "CONTRIBUTION",
+        "content": "Đề xuất kiến trúc CitationVerifierAgent với thuật toán Fast Entity Match kết hợp Cross-Encoder NLI.",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "CLAIM",
+        "content": "Hệ thống phát hiện chính xác 96.5% các trích dẫn ảo và giảm 85% thời gian tra cứu so với duyệt thủ công.",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "EVIDENCE",
+        "content": "Tập dữ liệu benchmark 1000 trích dẫn khoa học tổng hợp từ ArXiv với nhãn xác thực mặt đất (ground truth).",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "CONSTRAINT",
+        "content": "Chạy hoàn toàn trên 1 máy trạm RTX 3090, thời gian xử lý trung bình < 2.5s / citation.",
+        "status": "CONFIRMED"
+      },
+      {
+        "type": "OPEN_QUESTION",
+        "content": "Xử lý thế nào đối với các sách hoặc tài liệu hội thảo không có chỉ mục trên arXiv?",
+        "status": "PROPOSED"
+      }
+    ]
+  },
+  "round_2_related_works": {
+    "related_works": [
+      {
+        "paper_title": "FacTool: Factuality Detection in Generative AI",
+        "authors": "Yixuan Su et al.",
+        "year": 2023,
+        "what_they_did": "Framework phát hiện tính trung thực đa tác vụ (QA, code, scientific claims).",
+        "feedback": "Hệ thống tổng quát, chưa tối ưu tốc độ cho trích dẫn arXiv.",
+        "missing_points": "Chi phí gọi API cao và chưa có giao diện can thiệp của người dùng.",
+        "source_url": "https://arxiv.org/abs/2307.13528",
+        "source_type": "proceedings"
+      },
+      {
+        "paper_title": "RAG-Checker: A Fine-grained Framework for Diagnosing RAG",
+        "authors": "Dongxu Mao et al.",
+        "year": 2024,
+        "what_they_did": "Chẩn đoán chi tiết chất lượng RAG ở mức claim.",
+        "feedback": "Tập trung vào RAG tổng quát hơn là kiểm tra nguồn tài liệu học thuật.",
+        "missing_points": "Thiếu bộ phân tích metadata học thuật chuyên biệt.",
+        "source_url": "https://arxiv.org/abs/2409.08052",
+        "source_type": "peer-reviewed"
+      },
+      {
+        "paper_title": "FreshQA: An Evolving Dynamic Benchmark for Factuality",
+        "authors": "Tu Vu et al.",
+        "year": 2023,
+        "what_they_did": "Bộ dữ liệu đánh giá độ tươi mới và tính xác thực của thông tin động.",
+        "feedback": "Không đi sâu vào định dạng trích dẫn bài báo khoa học.",
+        "missing_points": "Chưa hỗ trợ định dạng bibtex và arXiv ID mapping.",
+        "source_url": "https://arxiv.org/abs/2310.03214",
+        "source_type": "peer-reviewed"
+      },
+      {
+        "paper_title": "Chain-of-Verification (CoVe) Reduces Hallucination in Large Language Models",
+        "authors": "Shehzaad Dhuliawala et al.",
+        "year": 2023,
+        "what_they_did": "Kỹ thuật tự sinh câu hỏi kiểm tra để giảm ảo giác trong LLM.",
+        "feedback": "Vẫn dựa trên tri thức nội tại của LLM, không thể thay thế việc tra cứu kho dữ liệu thật.",
+        "missing_points": "Không thể kiểm tra sự tồn tại thực tế của các mã bài báo mới.",
+        "source_url": "https://arxiv.org/abs/2309.11495",
+        "source_type": "proceedings"
+      }
+    ],
+    "selected_gap_direction": {
+      "letter": "B",
+      "label": "Claim–Evidence Verifier độc lập",
+      "description": "Xây dựng bộ xác thực liên kết trực tiếp với metadata thực tế từ arXiv và Semantic Scholar."
+    }
+  },
+  "round_3_experiments_and_feasibility": {
+    "contributions": [
+      "Xây dựng pipeline Citation Verification 2-giai đoạn (Entity Matching + Natural Language Inference).",
+      "Cung cấp tập dữ liệu SciCite-Hallucination gồm 1,000 cặp citation-evidence có gán nhãn thực tế."
+    ],
+    "claim_evidence_matrix": [
+      {
+        "claim": "Pipeline phát hiện 96.5% trích dẫn bịa đặt với F1-score đạt 0.94.",
+        "baseline": "CoVe & Direct GPT-4o verification",
+        "metric": "Precision, Recall, F1-Score (%)",
+        "evidence": "Kiểm nghiệm trên 1,000 bài báo ArXiv thực và giả lập.",
+        "rejection_condition": "F1-score < 0.85 hoặc Recall < 0.90."
+      },
+      {
+        "claim": "Thời gian kiểm tra trung bình đạt dưới 2.5 giây cho mỗi trích dẫn trên GPU RTX 3090.",
+        "baseline": "Full-text Search & LLM Scraper",
+        "metric": "Latency per citation (seconds)",
+        "evidence": "Log thời gian thực thi của 1000 lượt tra cứu qua ArXiv Service.",
+        "rejection_condition": "Độ trễ trung bình vượt quá 5.0 giây."
+      }
+    ],
+    "experiment_protocols": [
+      {
+        "name": "TN1: Synthetic Citation Detection Benchmark",
+        "protocol": "Đánh giá pipeline trên tập 500 trích dẫn thật từ arXiv và 500 trích dẫn giả lập do GPT-4o sinh.",
+        "expected_outcome": "Đạt độ chính xác > 95% trong việc phân loại trích dẫn thật/giả."
+      },
+      {
+        "name": "TN2: Context Entailment Verification",
+        "protocol": "Đo lường mức độ tương đồng giữa nội dung Claim với tóm tắt (Abstract) của bài báo thật.",
+        "expected_outcome": "Tỷ lệ phát hiện claim mâu thuẫn đạt 91.2%."
+      },
+      {
+        "name": "TN3: VRAM & Latency Profiling",
+        "protocol": "Chạy mô hình NLI cục bộ (DeBERTa-v3-large) trên NVIDIA RTX 3090.",
+        "expected_outcome": "VRAM tiêu thụ ổn định ở mức 6.8GB, độ trễ 1.8s/mẫu."
+      }
+    ],
+    "feasibility_estimation": {
+      "model_name": "DeBERTa-v3-large + ArXiv API Engine",
+      "seed_prompts_count": 10,
+      "candidates_count": 2,
+      "vram_needed_gb": 8.5,
+      "tokens_estimated": 32000,
+      "gpu_time_hours": 0.25,
+      "is_feasible": true,
+      "explanation": "Mô hình NLI và ArXiv API engine tiêu thụ khoảng 8.5GB VRAM, chạy rất mượt mà trên 1x NVIDIA RTX 3090 24GB."
+    }
+  },
+  "round_4_judges_review": {
+    "spec_version_used": 1,
+    "status": "COMPLETED",
+    "judges": [
+      {
+        "type": "gap",
+        "verdict": "ACCEPT",
+        "issues": []
+      },
+      {
+        "type": "contribution",
+        "verdict": "ACCEPT",
+        "issues": []
+      },
+      {
+        "type": "experiment",
+        "verdict": "ACCEPT",
+        "issues": []
+      },
+      {
+        "type": "evidence",
+        "verdict": "ACCEPT",
+        "issues": []
+      },
+      {
+        "type": "conference-readiness",
+        "verdict": "ACCEPT",
+        "issues": []
+      }
+    ]
+  },
+  "round_5_final_spec_summary": {
+    "title": "Multi-Agent Verification Pipeline for Eliminating Hallucinated Citations",
+    "status": "CONFIRMED_BY_USER",
+    "export_formats": ["MARKDOWN", "JSON", "PDF"]
+  }
+}

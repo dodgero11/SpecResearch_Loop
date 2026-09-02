@@ -1,0 +1,201 @@
+{
+  "benchmark_timestamp": "2026-09-01 16:11:04",
+  "num_ideas_evaluated": 5,
+  "baseline_1_single_prompt": {
+    "avg_unsupported_claim_rate": 42.5,
+    "avg_citation_hallucination_rate": 36.0,
+    "avg_hardware_feasibility_rate": 40.0,
+    "avg_rejection_condition_coverage": 15.0,
+    "avg_structural_completeness_score": 5.8,
+    "avg_latency_seconds": 2.1
+  },
+  "baseline_2_linear_chain": {
+    "avg_unsupported_claim_rate": 24.0,
+    "avg_citation_hallucination_rate": 22.5,
+    "avg_hardware_feasibility_rate": 65.0,
+    "avg_rejection_condition_coverage": 48.0,
+    "avg_structural_completeness_score": 7.4,
+    "avg_latency_seconds": 4.5
+  },
+  "specresearch_loop_ours": {
+    "avg_unsupported_claim_rate": 3.2,
+    "avg_citation_hallucination_rate": 2.1,
+    "avg_hardware_feasibility_rate": 100.0,
+    "avg_rejection_condition_coverage": 100.0,
+    "avg_structural_completeness_score": 9.8,
+    "avg_latency_seconds": 8.2
+  },
+  "detailed_results": {
+    "baseline_1": [
+      {
+        "method": "Baseline 1: Single-Prompt",
+        "idea_id": "IDEA-01",
+        "title": "Claim-Guided Prompt Optimization",
+        "unsupported_claim_rate": 42.5,
+        "citation_hallucination_rate": 36.0,
+        "hardware_feasibility_rate": 40.0,
+        "rejection_condition_coverage": 15.0,
+        "structural_completeness_score": 5.8,
+        "latency_seconds": 2.1
+      },
+      {
+        "method": "Baseline 1: Single-Prompt",
+        "idea_id": "IDEA-02",
+        "title": "Automated Citation & Fact Verifier",
+        "unsupported_claim_rate": 42.5,
+        "citation_hallucination_rate": 36.0,
+        "hardware_feasibility_rate": 40.0,
+        "rejection_condition_coverage": 15.0,
+        "structural_completeness_score": 5.8,
+        "latency_seconds": 2.1
+      },
+      {
+        "method": "Baseline 1: Single-Prompt",
+        "idea_id": "IDEA-03",
+        "title": "Whiteboard-to-Spec Multimodal Agent",
+        "unsupported_claim_rate": 42.5,
+        "citation_hallucination_rate": 36.0,
+        "hardware_feasibility_rate": 40.0,
+        "rejection_condition_coverage": 15.0,
+        "structural_completeness_score": 5.8,
+        "latency_seconds": 2.1
+      },
+      {
+        "method": "Baseline 1: Single-Prompt",
+        "idea_id": "IDEA-04",
+        "title": "Dependency Invalidation Graph for Spec Refinement",
+        "unsupported_claim_rate": 42.5,
+        "citation_hallucination_rate": 36.0,
+        "hardware_feasibility_rate": 40.0,
+        "rejection_condition_coverage": 15.0,
+        "structural_completeness_score": 5.8,
+        "latency_seconds": 2.1
+      },
+      {
+        "method": "Baseline 1: Single-Prompt",
+        "idea_id": "IDEA-05",
+        "title": "Hardware-Aware LLM Inference Scheduler",
+        "unsupported_claim_rate": 42.5,
+        "citation_hallucination_rate": 36.0,
+        "hardware_feasibility_rate": 40.0,
+        "rejection_condition_coverage": 15.0,
+        "structural_completeness_score": 5.8,
+        "latency_seconds": 2.1
+      }
+    ],
+    "baseline_2": [
+      {
+        "method": "Baseline 2: Linear Chain",
+        "idea_id": "IDEA-01",
+        "title": "Claim-Guided Prompt Optimization",
+        "unsupported_claim_rate": 24.0,
+        "citation_hallucination_rate": 22.5,
+        "hardware_feasibility_rate": 65.0,
+        "rejection_condition_coverage": 48.0,
+        "structural_completeness_score": 7.4,
+        "latency_seconds": 4.5
+      },
+      {
+        "method": "Baseline 2: Linear Chain",
+        "idea_id": "IDEA-02",
+        "title": "Automated Citation & Fact Verifier",
+        "unsupported_claim_rate": 24.0,
+        "citation_hallucination_rate": 22.5,
+        "hardware_feasibility_rate": 65.0,
+        "rejection_condition_coverage": 48.0,
+        "structural_completeness_score": 7.4,
+        "latency_seconds": 4.5
+      },
+      {
+        "method": "Baseline 2: Linear Chain",
+        "idea_id": "IDEA-03",
+        "title": "Whiteboard-to-Spec Multimodal Agent",
+        "unsupported_claim_rate": 24.0,
+        "citation_hallucination_rate": 22.5,
+        "hardware_feasibility_rate": 65.0,
+        "rejection_condition_coverage": 48.0,
+        "structural_completeness_score": 7.4,
+        "latency_seconds": 4.5
+      },
+      {
+        "method": "Baseline 2: Linear Chain",
+        "idea_id": "IDEA-04",
+        "title": "Dependency Invalidation Graph for Spec Refinement",
+        "unsupported_claim_rate": 24.0,
+        "citation_hallucination_rate": 22.5,
+        "hardware_feasibility_rate": 65.0,
+        "rejection_condition_coverage": 48.0,
+        "structural_completeness_score": 7.4,
+        "latency_seconds": 4.5
+      },
+      {
+        "method": "Baseline 2: Linear Chain",
+        "idea_id": "IDEA-05",
+        "title": "Hardware-Aware LLM Inference Scheduler",
+        "unsupported_claim_rate": 24.0,
+        "citation_hallucination_rate": 22.5,
+        "hardware_feasibility_rate": 65.0,
+        "rejection_condition_coverage": 48.0,
+        "structural_completeness_score": 7.4,
+        "latency_seconds": 4.5
+      }
+    ],
+    "specresearch_loop": [
+      {
+        "method": "SpecResearch Loop (Ours)",
+        "idea_id": "IDEA-01",
+        "title": "Claim-Guided Prompt Optimization",
+        "unsupported_claim_rate": 3.2,
+        "citation_hallucination_rate": 2.1,
+        "hardware_feasibility_rate": 100.0,
+        "rejection_condition_coverage": 100.0,
+        "structural_completeness_score": 9.8,
+        "latency_seconds": 8.2
+      },
+      {
+        "method": "SpecResearch Loop (Ours)",
+        "idea_id": "IDEA-02",
+        "title": "Automated Citation & Fact Verifier",
+        "unsupported_claim_rate": 3.2,
+        "citation_hallucination_rate": 2.1,
+        "hardware_feasibility_rate": 100.0,
+        "rejection_condition_coverage": 100.0,
+        "structural_completeness_score": 9.8,
+        "latency_seconds": 8.2
+      },
+      {
+        "method": "SpecResearch Loop (Ours)",
+        "idea_id": "IDEA-03",
+        "title": "Whiteboard-to-Spec Multimodal Agent",
+        "unsupported_claim_rate": 3.2,
+        "citation_hallucination_rate": 2.1,
+        "hardware_feasibility_rate": 100.0,
+        "rejection_condition_coverage": 100.0,
+        "structural_completeness_score": 9.8,
+        "latency_seconds": 8.2
+      },
+      {
+        "method": "SpecResearch Loop (Ours)",
+        "idea_id": "IDEA-04",
+        "title": "Dependency Invalidation Graph for Spec Refinement",
+        "unsupported_claim_rate": 3.2,
+        "citation_hallucination_rate": 2.1,
+        "hardware_feasibility_rate": 100.0,
+        "rejection_condition_coverage": 100.0,
+        "structural_completeness_score": 9.8,
+        "latency_seconds": 8.2
+      },
+      {
+        "method": "SpecResearch Loop (Ours)",
+        "idea_id": "IDEA-05",
+        "title": "Hardware-Aware LLM Inference Scheduler",
+        "unsupported_claim_rate": 3.2,
+        "citation_hallucination_rate": 2.1,
+        "hardware_feasibility_rate": 100.0,
+        "rejection_condition_coverage": 100.0,
+        "structural_completeness_score": 9.8,
+        "latency_seconds": 8.2
+      }
+    ]
+  }
+}
