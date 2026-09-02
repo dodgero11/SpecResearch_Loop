@@ -88,7 +88,7 @@ export class JudgeService {
     projectId: string,
     workflowRunId?: string,
   ): Promise<JudgePanelResult> {
-    const completePanel = this.llm.completePanel;
+    const completePanel = this.llm.completePanel?.bind(this.llm);
     if (typeof completePanel === "function") {
       return this.runPanelBatched(projectId, workflowRunId, completePanel);
     }
@@ -105,7 +105,11 @@ export class JudgeService {
     };
     await this.persistIssues(projectId, panel.specVersionUsed, results);
     if (panel.status === "COMPLETED") {
-      await this.persistJudgeArtifact(projectId, panel.specVersionUsed, results);
+      await this.persistJudgeArtifact(
+        projectId,
+        panel.specVersionUsed,
+        results,
+      );
     }
     return panel;
   }
@@ -150,7 +154,11 @@ export class JudgeService {
       };
       await this.persistIssues(projectId, panel.specVersionUsed, judges);
       if (panel.status === "COMPLETED") {
-        await this.persistJudgeArtifact(projectId, panel.specVersionUsed, judges);
+        await this.persistJudgeArtifact(
+          projectId,
+          panel.specVersionUsed,
+          judges,
+        );
       }
       return panel;
     } catch (error) {
@@ -277,7 +285,9 @@ export class JudgeService {
     });
     if (!spec) return;
     await this.prisma.specArtifact.upsert({
-      where: { specIterationId_node: { specIterationId: spec.id, node: "judge" } },
+      where: {
+        specIterationId_node: { specIterationId: spec.id, node: "judge" },
+      },
       create: {
         projectId,
         specIterationId: spec.id,

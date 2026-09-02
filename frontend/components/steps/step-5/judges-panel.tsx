@@ -7,20 +7,25 @@ type JudgesPanelProps = {
   running: boolean
   hasRun: boolean
   issues: JudgeIssue[]
+  failedTypes: string[]
   onRunJudges: () => Promise<void>
 }
 
-export function JudgesPanel({ running, hasRun, issues, onRunJudges }: JudgesPanelProps) {
+export function JudgesPanel({ running, hasRun, issues, failedTypes, onRunJudges }: JudgesPanelProps) {
   const hasIssues = issues.length > 0
 
-  // "Đồng thuận" here means the judge currently has nothing unresolved left to flag —
-  // either it never raised an issue, or every issue it raised has since been resolved.
+  // "Đồng thuận" here means the judge actually ran AND has nothing unresolved left to
+  // flag — either it never raised an issue, or every issue it raised has since been
+  // resolved. A judge that failed to run is neither agreeing nor disagreeing — it's an
+  // error state, kept separate so a crashed run never reads as "no problems found".
   const perJudge = JUDGES.map((judge) => {
     const judgeIssues = issues.filter((issue) => issue.judgeType === judge.type)
     const unresolved = judgeIssues.filter((issue) => issue.status !== 'RESOLVED')
-    return { judge, judgeIssues, unresolved }
+    const failed = failedTypes.includes(judge.type)
+    return { judge, judgeIssues, unresolved, failed }
   })
-  const agreeingCount = perJudge.filter(({ unresolved }) => unresolved.length === 0).length
+  const failedCount = perJudge.filter(({ failed }) => failed).length
+  const agreeingCount = perJudge.filter(({ unresolved, failed }) => !failed && unresolved.length === 0).length
 
   return (
     <div className="mini-panel judges-panel">
@@ -30,8 +35,12 @@ export function JudgesPanel({ running, hasRun, issues, onRunJudges }: JudgesPane
       </h2>
 
       {hasRun && (
-        <p className="judge-consensus-summary">
-          {agreeingCount === JUDGES.length ? (
+        <p className={failedCount > 0 ? 'judge-consensus-summary is-error' : 'judge-consensus-summary'}>
+          {failedCount > 0 ? (
+            <>
+              <AlertTriangle size={13} /> {failedCount}/{JUDGES.length} Judge chạy lỗi — bấm "Chạy lại đánh giá Judge" để thử lại.
+            </>
+          ) : agreeingCount === JUDGES.length ? (
             <>
               <Check size={13} /> Cả 5 Judge đều đồng thuận — không còn vấn đề nào chưa xử lý.
             </>
@@ -44,9 +53,9 @@ export function JudgesPanel({ running, hasRun, issues, onRunJudges }: JudgesPane
       )}
 
       <div className="judge-list">
-        {perJudge.map(({ judge, judgeIssues, unresolved }) => {
+        {perJudge.map(({ judge, judgeIssues, unresolved, failed }) => {
           const severity = worstSeverity(unresolved.map((issue) => issue.severity))
-          const cardStatus = !hasRun ? undefined : unresolved.length > 0 ? 'has-issues' : 'is-clean'
+          const cardStatus = !hasRun ? undefined : failed ? 'has-error' : unresolved.length > 0 ? 'has-issues' : 'is-clean'
           return (
             <article key={judge.title} className={cardStatus}>
               <strong>
@@ -57,6 +66,10 @@ export function JudgesPanel({ running, hasRun, issues, onRunJudges }: JudgesPane
               <judge.icon size={32} />
               {!hasRun ? (
                 <div className="judge-dots">● ● ● ● ●</div>
+              ) : failed ? (
+                <div className="judge-error">
+                  <AlertTriangle size={12} /> Lỗi khi chạy
+                </div>
               ) : unresolved.length > 0 ? (
                 <div className="judge-issue-count">
                   {unresolved.length} issue{severity ? ` (${severity})` : ''} chưa xử lý

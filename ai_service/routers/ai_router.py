@@ -262,18 +262,25 @@ async def get_related_works(
         ]
     )
 
+# @router.post("/gap-analysis", response_model=GapAnalysisResponse)
+# async def gap_analysis(payload: GapAnalysisRequest, llm: LlmService = Depends(get_llm_service)):
+#     """
+#     Step 3b: Phân tích khoảng trống nghiên cứu và đề xuất 4 hướng A, B, C, D.
+#     """
+#     llm = ensure_llm(llm)
+#     if not get_use_mock_ai() and llm.api_key:
+#         try:
+#             return llm.process_step2_gap_analysis(payload.gap_candidate, payload.related_works or [])
+#         except Exception as e:
+#             print(f"[Fallback to Mock] gap-analysis failed with Gemini: {e}")
 @router.post("/gap-analysis", response_model=GapAnalysisResponse)
 async def gap_analysis(payload: GapAnalysisRequest, llm: LlmService = Depends(get_llm_service)):
-    """
-    Step 3b: Phân tích khoảng trống nghiên cứu và đề xuất 4 hướng A, B, C, D.
-    """
     llm = ensure_llm(llm)
     if not get_use_mock_ai() and llm.api_key:
         try:
-            return llm.process_step2_gap_analysis(payload.gap_candidate, payload.related_works or [])
+            return llm.process_step2_gap_analysis(payload.gap_candidate, payload.related_works or [], payload.revision_instruction)  # ← thêm tham số cuối
         except Exception as e:
             print(f"[Fallback to Mock] gap-analysis failed with Gemini: {e}")
-
     # Fallback / Mock
     return GapAnalysisResponse(
         what_was_done="Các nghiên cứu trước (OPRO, DSPy, TextGrad) đã tối ưu prompt bằng điểm tổng hoặc gradient ngôn ngữ.",

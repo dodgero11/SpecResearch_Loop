@@ -106,10 +106,14 @@ class RelatedWorksResponse(BaseModel):
     related_works: List[RelatedWorkItem] = Field(description="Bảng đối sánh Related Works")
     proposed_gaps: List[ProposedGapOption] = Field(description="Các hướng Research Gap đề xuất")
 
+# class GapAnalysisRequest(BaseModel):
+#     gap_candidate: str = Field(description="Khoảng trống nghiên cứu sơ bộ")
+#     related_works: Optional[List[Any]] = Field(default=None, description="Danh sách related works")
 class GapAnalysisRequest(BaseModel):
     gap_candidate: str = Field(description="Khoảng trống nghiên cứu sơ bộ")
     related_works: Optional[List[Any]] = Field(default=None, description="Danh sách related works")
-
+    revision_instruction: Optional[str] = Field(default=None, description="Vấn đề cần sửa lại, nếu đây là lần regenerate sau khi bị Judge chê")
+    
 class DirectionOption(BaseModel):
     letter: str = Field(description="Mã chữ cái (A, B, C, D)")
     label: str = Field(description="Tên hướng đi")

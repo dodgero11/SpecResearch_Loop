@@ -107,6 +107,10 @@ export default function StepFive() {
   // them, or they'd already run before (GET /issues came back non-empty on load). Used to tell
   // "chưa chạy" apart from "chạy rồi, judge đó sạch" in the per-judge consensus display.
   const [hasRunJudges, setHasRunJudges] = useState(false)
+  const [failedJudgeTypes, setFailedJudgeTypes] = useState<string[]>([])
+  // Keyed by issue id — filled in only for judge types the backend actually rewrites
+  // content for (currently just "gap"). Other types resolve without a before/after.
+  const [resolutionDiffs, setResolutionDiffs] = useState<Record<string, { before: unknown; after: unknown } | undefined>>({})
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -142,7 +146,16 @@ export default function StepFive() {
     setRunningJudges(true)
     setError(null)
     try {
-      await apiPost(`/projects/${projectId}/judges/panel`)
+      const panel = await apiPost<{ status: string; judges: { type: string; status: string; error?: string }[] }>(
+        `/projects/${projectId}/judges/panel`,
+      )
+      const failed = panel.judges.filter((j) => j.status === 'FAILED')
+      setFailedJudgeTypes(failed.map((j) => j.type))
+      // A judge that crashed before returning is a real failure, not "no issues found" —
+      // surface it as an error so the consensus summary doesn't read the crash as clean.
+      if (failed.length > 0) {
+        setError(`${failed.length}/5 Judge chạy lỗi: ${failed[0].error ?? 'lỗi không xác định'}`)
+      }
       setHasRunJudges(true) // covers the edge case where the run is fully clean (0 issues from any judge)
       await loadIssues(projectId)
     } catch (err) {
@@ -156,7 +169,15 @@ export default function StepFive() {
     if (!projectId) return
     setError(null)
     try {
-      await apiPost(`/projects/${projectId}/issues/${issueId}/resolve`, { choice, customChoice })
+      const result = await apiPost<{ before?: unknown; after?: unknown }>(`/projects/${projectId}/issues/${issueId}/resolve`, {
+        choice,
+        customChoice,
+      })
+      // `before`/`after` are only present for judge types the backend actually
+      // rewrites content for (currently just "gap") — undefined otherwise.
+      if (result.before !== undefined || result.after !== undefined) {
+        setResolutionDiffs((prev) => ({ ...prev, [issueId]: { before: result.before, after: result.after } }))
+      }
       setIssues((prev) => prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'RESOLVED' } : issue)))
       setActiveIssueId(issues.find((i) => i.id !== issueId && i.status !== 'RESOLVED')?.id ?? null)
     } catch (err) {
@@ -223,11 +244,21 @@ export default function StepFive() {
                 <TemporarySpecPanel items={specItems} />
               </section>
               <section className="judge-center">
-                <JudgesPanel running={runningJudges} hasRun={hasRunJudges} issues={issues} onRunJudges={handleRunJudges} />
+                <JudgesPanel
+                  running={runningJudges}
+                  hasRun={hasRunJudges}
+                  issues={issues}
+                  failedTypes={failedJudgeTypes}
+                  onRunJudges={handleRunJudges}
+                />
                 <IssuePanel issues={issues} activeIssueId={activeIssueId} onSelectIssue={setActiveIssueId} />
               </section>
               <section className="user-choice">
-                <ChoicePanel activeIssue={activeIssue} onResolve={handleResolveIssue} />
+                <ChoicePanel
+                  activeIssue={activeIssue}
+                  resolutionDiff={activeIssue ? resolutionDiffs[activeIssue.id] : undefined}
+                  onResolve={handleResolveIssue}
+                />
                 <FinalSpecPanel issues={issues} resolvedIds={resolvedIds} confirmed={specConfirmed} onConfirm={handleConfirmFinal} />
               </section>
             </div>

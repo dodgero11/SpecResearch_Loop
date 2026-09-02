@@ -715,21 +715,32 @@ Requirements:
         return self.call_gemini_structured(prompt, RelatedWorksResponse, context={"problem": problem, "research_question": research_question, "query": query})
 
 
-    def process_step2_gap_analysis(self, gap_candidate: str, related_works: List[Any]) -> GapAnalysisResponse:
-        """Step 3b: Gap analysis + 4 focus directions A, B, C, D."""
-        prompt = f"""
-System: Analyze the research gap candidate against related works and generate 4 specific directions (A, B, C, D).
-Fields:
-- what_was_done (Vietnamese)
-- limitation (Vietnamese)
-- why_it_matters (Vietnamese)
-- testable_with (Vietnamese)
-- directions: exactly 4 items with letter ('A','B','C','D'), label, and description in Vietnamese.
+#     def process_step2_gap_analysis(self, gap_candidate: str, related_works: List[Any]) -> GapAnalysisResponse:
+#         """Step 3b: Gap analysis + 4 focus directions A, B, C, D."""
+#         prompt = f"""
+# System: Analyze the research gap candidate against related works and generate 4 specific directions (A, B, C, D).
+# Fields:
+# - what_was_done (Vietnamese)
+# - limitation (Vietnamese)
+# - why_it_matters (Vietnamese)
+# - testable_with (Vietnamese)
+# - directions: exactly 4 items with letter ('A','B','C','D'), label, and description in Vietnamese.
 
-Gap Candidate: "{gap_candidate}"
-Related Works: {json.dumps(related_works, ensure_ascii=False)}
-"""
-        return self.call_gemini_structured(prompt, GapAnalysisResponse, context={"gap_candidate": gap_candidate, "related_works": related_works})
+# Gap Candidate: "{gap_candidate}"
+# Related Works: {json.dumps(related_works, ensure_ascii=False)}
+# """
+#         return self.call_gemini_structured(prompt, GapAnalysisResponse, context={"gap_candidate": gap_candidate, "related_works": related_works})
+    def process_step2_gap_analysis(self, gap_candidate: str, related_works: List[Any], revision_instruction: Optional[str] = None) -> GapAnalysisResponse:
+        """Step 3b: Gap analysis + 4 focus directions A, B, C, D."""
+        extra = f"\n\nLƯU Ý: Bản trước đã bị đánh giá có vấn đề: \"{revision_instruction}\". Hãy sửa lại nội dung để khắc phục vấn đề này." if revision_instruction else ""
+        prompt = f"""
+    System: Analyze the research gap candidate against related works and generate 4 specific directions (A, B, C, D).
+    ...
+    Gap Candidate: "{gap_candidate}"
+    Related Works: {json.dumps(related_works, ensure_ascii=False)}
+    {extra}
+    """
+        return self.call_gemini_structured(prompt, GapAnalysisResponse)
 
     def process_step3_conflicts(self, pairs: List[Any], related_works: List[Any]) -> ConflictCheckResponse:
         """Detect conflicts between claim-evidence pairs and related works."""
@@ -750,8 +761,12 @@ Related Works: {json.dumps(related_works, ensure_ascii=False)}
         """Step 4: Design contributions, claims, experiments, and RTX 3090 feasibility."""
         prompt = f"""
 System: You are the Experiment Designer Agent in SpecResearch Loop.
-1. Propose 2-3 scientific contributions in Vietnamese.
-2. Design 2-3 ClaimCardSchema (claim, baseline, metric, evidence, rejection_condition).
+# 1. Propose 2-3 scientific contributions in Vietnamese.
+# 2. Design 2-3 ClaimCardSchema (claim, baseline, metric, evidence, rejection_condition).
+1. Propose exactly N scientific contributions in Vietnamese (N = 2 or 3).
+2. Design EXACTLY N ClaimCardSchema (claim, baseline, metric, evidence, rejection_condition) —
+   one claim per contribution, in the SAME ORDER as the contributions list, so claims[i]
+   is the Claim-Evidence card for contributions[i]. Do NOT return fewer claims than contributions.
 3. Design 3 detailed ExperimentSchema (name e.g. 'TN1: Baseline', 'TN2: Đánh giá chất lượng', 'TN3: Ablation study', protocol in Vietnamese, expected_outcome in Vietnamese).
 4. Estimate FeasibilityEstimation for a consumer GPU (NVIDIA RTX 3090, 24GB VRAM). Ensure is_feasible is True and vram_needed_gb <= 24.0.
 
