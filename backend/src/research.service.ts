@@ -37,7 +37,7 @@ export class ResearchService {
     const problem = cards.find((card) => card.type === SpecCardType.PROBLEM)?.content ?? '';
     const researchQuestion = cards.find((card) => card.type === SpecCardType.RESEARCH_QUESTION)?.content ?? '';
     const gap = cards.find((card) => card.type === SpecCardType.GAP_CANDIDATE)?.content ?? '';
-    const response = await this.ai.relatedWorks(problem, researchQuestion, gap ? [gap] : undefined);
+    const response = await this.ai.relatedWorks(problem, researchQuestion, gap || undefined);
     const results = Array.isArray(response.output.related_works) ? response.output.related_works : [];
     // AI-sourced works don't carry a stable id; assign one so the frontend can
     // reliably delete them later (rows are keyed by id, and the backend matches

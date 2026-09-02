@@ -81,7 +81,11 @@ class ClarifyResponse(BaseModel):
 class RelatedWorksRequest(BaseModel):
     problem: str = Field(description="Vấn đề nghiên cứu")
     research_question: str = Field(description="Câu hỏi nghiên cứu")
+    gap: Optional[str] = Field(default=None, description="Khoảng trống nghiên cứu (gap candidate)")
     keywords: Optional[List[str]] = Field(default=None, description="Các từ khóa tìm kiếm (tùy chọn)")
+
+class SearchKeywordsResponse(BaseModel):
+    keywords: List[str] = Field(description="Danh sách 3-5 từ khóa tìm kiếm ngắn gọn cho arXiv")
 
 class RelatedWorkItem(BaseModel):
     paper_title: str = Field(description="Tên bài báo khoa học")

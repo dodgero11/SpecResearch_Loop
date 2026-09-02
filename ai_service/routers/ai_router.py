@@ -190,7 +190,17 @@ async def get_related_works(
     """
     arxiv_srv = ensure_arxiv(arxiv_srv)
     llm = ensure_llm(llm)
-    search_query = payload.keywords[0] if (payload.keywords and len(payload.keywords) > 0) else payload.research_question
+
+    # Ask Gemini to generate targeted arXiv search keywords from the full context
+    # (problem + research_question + gap) instead of passing a raw sentence to arXiv.
+    search_query = payload.research_question
+    if not get_use_mock_ai() and llm.api_key:
+        try:
+            kw = llm.generate_search_keywords(payload.problem, payload.research_question, payload.gap)
+            if kw.keywords:
+                search_query = kw.keywords[0]
+        except Exception as e:
+            print(f"[Warning] Keyword generation failed ({e}), using research_question as query...", flush=True)
 
     raw_papers = []
     if not get_use_mock_ai():

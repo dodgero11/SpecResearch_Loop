@@ -18,11 +18,11 @@ export interface AiGateway {
   generateQuestions(clarifiedIdea: string): Promise<AiGatewayResponse>;
   /** POST /ai/v1/decompose — context → { cards: [{ type, content, status }] } (8 fixed types, PROPOSED) */
   decompose(context: Record<string, unknown>): Promise<AiGatewayResponse>;
-  /** POST /ai/v1/related-works — { problem, research_question, keywords? } → { related_works: [...] } */
+  /** POST /ai/v1/related-works — { problem, research_question, gap? } → { related_works: [...] } */
   relatedWorks(
     problem: string,
     researchQuestion: string,
-    keywords?: string[],
+    gap?: string,
   ): Promise<AiGatewayResponse>;
   /** POST /ai/v1/gap-analysis — { gap_candidate, related_works } → { what_was_done, limitation, why_it_matters, testable_with, directions } */
   // gapAnalysis(gapCandidate: string, relatedWorks: unknown[]): Promise<AiGatewayResponse>;

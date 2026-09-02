@@ -110,7 +110,7 @@ export interface AiGateway {
   understandIdea(idea: string, feedback?: string): Promise<AiGatewayResponse>;
   generateQuestions(clarifiedIdea: string): Promise<AiGatewayResponse>;
   decompose(context: Record<string, unknown>): Promise<AiGatewayResponse>;
-  relatedWorks(problem: string, researchQuestion: string, keywords?: string[]): Promise<AiGatewayResponse>;
+  relatedWorks(problem: string, researchQuestion: string, gap?: string): Promise<AiGatewayResponse>;
   gapAnalysis(gapCandidate: string, relatedWorks: unknown[]): Promise<AiGatewayResponse>;
   specExperiment(problem: string, gap: string, direction?: string): Promise<AiGatewayResponse>;
   singleClaimExperiment(claimEvidence: Record<string, unknown>): Promise<AiGatewayResponse>;

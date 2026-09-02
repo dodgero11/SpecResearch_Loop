@@ -11,6 +11,7 @@ from schemas.spec_schemas import (
     ClarifyUnderstandResponse, ClarifyQuestionsResponse, QuestionItem,
     DecomposeResponse, SpecCardSchema, SpecCardType, SpecCardStatus,
     RelatedWorksResponse, RelatedWorksOnlyResponse, RelatedWorkItem, ProposedGapOption,
+    SearchKeywordsResponse,
     GapAnalysisResponse, DirectionOption,
     SpecExperimentResponse, ClaimCardSchema, ExperimentSchema, FeasibilityEstimation, FeasibilityRequest,
     SingleClaimExperimentResponse, ConflictCheckResponse, ConflictItem,
@@ -497,6 +498,15 @@ class LlmService:
                 summary="Mock: nội dung đã được sửa theo yêu cầu."
             )
 
+        elif response_schema == SearchKeywordsResponse:
+            return SearchKeywordsResponse(
+                keywords=[
+                    "multimodal medical diagnosis",
+                    "clinical imaging large language model",
+                    "medical data integration",
+                ]
+            )
+
         # Generic default initialization if schema has default constructible fields
         try:
             return response_schema()
@@ -664,6 +674,30 @@ Answers: {json.dumps(context.get('answers', []), ensure_ascii=False)}
     # ==========================================
     # VÒNG 2: RELATED WORKS & GAP ANALYSIS
     # ==========================================
+
+    def generate_search_keywords(
+        self,
+        problem: str,
+        research_question: str,
+        gap: Optional[str] = None,
+    ) -> SearchKeywordsResponse:
+        """Step 3a: Ask Gemini to distill the research context into short arXiv search keywords."""
+        prompt = f"""
+System: You are a literature search keyword generator for arXiv.
+Given the research problem, research question, and research gap, produce 3-5 short, specific English
+keyword phrases that will return highly relevant papers on arXiv. Each keyword should be 1-4 words.
+Do NOT use full sentences. Focus on the core technical domain (e.g. "multimodal medical diagnosis",
+"clinical imaging LLM").
+
+Problem: {problem}
+Research Question: {research_question}
+Research Gap: {gap or "(none)"}
+"""
+        return self.call_gemini_structured(
+            prompt,
+            SearchKeywordsResponse,
+            context={"problem": problem, "research_question": research_question, "gap": gap},
+        )
 
     def process_step2_related_works(self, problem: str, research_question: str, papers: List[Dict[str, Any]]) -> RelatedWorksResponse:
         """Step 3a: Synthesize comparative related works analysis and gap options from retrieved arXiv papers."""

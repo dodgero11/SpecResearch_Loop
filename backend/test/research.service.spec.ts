@@ -54,7 +54,7 @@ describe('ResearchService', () => {
 
     const result = await service.getRelatedWorks('project-1');
 
-    expect(ai.relatedWorks).toHaveBeenCalledWith('P', 'RQ', ['G']);
+    expect(ai.relatedWorks).toHaveBeenCalledWith('P', 'RQ', 'G');
     // AI-sourced works get a stable id assigned so they can be deleted later.
     expect(projects.createSpec).toHaveBeenCalledWith('project-1', { relatedWork: [{ paper_title: 'OPRO', id: expect.any(String) }] });
     expect(tx.specArtifact.upsert).toHaveBeenCalledTimes(6);

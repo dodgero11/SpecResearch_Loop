@@ -71,7 +71,7 @@ export class LocalAiGateway implements AiGateway {
   async relatedWorks(
     problem: string,
     researchQuestion: string,
-    keywords?: string[],
+    gap?: string,
   ): Promise<AiGatewayResponse> {
     return {
       output: {
@@ -91,7 +91,7 @@ export class LocalAiGateway implements AiGateway {
       inputTokens:
         problem.length +
         researchQuestion.length +
-        (keywords?.join(",").length ?? 0),
+        (gap?.length ?? 0),
       outputTokens: 1,
     };
   }

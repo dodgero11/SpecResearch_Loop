@@ -38,12 +38,12 @@ export class HttpAiGateway implements AiGateway {
   async relatedWorks(
     problem: string,
     researchQuestion: string,
-    keywords?: string[],
+    gap?: string,
   ): Promise<AiGatewayResponse> {
     return this.call("/ai/v1/related-works", {
       problem,
       research_question: researchQuestion,
-      keywords,
+      gap,
     });
   }
 
