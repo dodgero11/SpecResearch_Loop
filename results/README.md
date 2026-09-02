@@ -2,7 +2,7 @@
 
 > **Dự án:** SpecResearch Loop — Hệ thống hoàn thiện ý tưởng nghiên cứu bằng bằng chứng và vòng lặp xác nhận Multi-Agent
 > **Môn học:** Đồ án Công nghệ mới trong Phát triển Phần mềm
-> **Ngày bàn giao:** 2026-09-02
+> **Ngày bàn giao:** 2026-09-03
 
 Thư mục `results/` này tập hợp **toàn bộ các sản phẩm bàn giao** theo đúng danh mục yêu cầu của đề bài. Mỗi mục tương ứng với một thư mục con, kèm tài liệu giải thích và đường dẫn tới mã nguồn gốc trong repository.
 
@@ -16,7 +16,7 @@ Thư mục `results/` này tập hợp **toàn bộ các sản phẩm bàn giao*
 | 2 | **Dataset / tập use case thử nghiệm** | ✅ Hoàn thành (3 use cases) | [`04_use_cases/`](04_use_cases/) | `data/use_cases/*.json` |
 | 3 | **Prompt của Generator và các Judge** | ✅ Hoàn thành | [`05_prompts/`](05_prompts/) | `docs/system_prompts.md` |
 | 4 | **Cơ chế kiểm tra citation / evidence** | ✅ Hoàn thành | [`06_citation_evidence/`](06_citation_evidence/) | `ai_service/services/arxiv_service.py` + Evidence Judge |
-| 5 | **Ít nhất hai baseline** | ✅ Hoàn thành (2 baselines) | [`07_baselines/`](07_baselines/) | `eval/benchmark_baselines.py` |
+| 5 | **Ít nhất hai baseline** | ✅ Hoàn thành (2 baselines) | [`07_baselines/`](07_baselines/) | `07_baselines/benchmark_baselines.py` |
 | 6 | **Báo cáo đánh giá hệ thống** | ✅ Hoàn thành | [`08_evaluation_report/`](08_evaluation_report/) | `docs/evaluation_report.md` |
 | 7 | **Research spec hoàn chỉnh do hệ thống tạo ra** | ✅ Hoàn thành | [`10_sample_spec/`](10_sample_spec/) | `examples/sample_research_specification.md` |
 

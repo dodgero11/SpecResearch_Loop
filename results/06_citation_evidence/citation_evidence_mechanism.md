@@ -1,7 +1,7 @@
 # Cơ Chế Kiểm Tra Citation & Evidence (SpecResearch Loop)
 
 > **Mục tiêu:** Loại bỏ trích dẫn ảo (hallucinated citations) và đảm bảo mọi tuyên bố khoa học (Claim) đều có bằng chứng thực tế, có thể kiểm chứng.
-> **Kết quả đo được:** Tỷ lệ trích dẫn ảo giảm từ **36.0%** (Baseline 1) xuống **2.1%**; tỷ lệ Claim không có bằng chứng giảm từ **42.5%** xuống **3.2%** (xem `../08_evaluation_report/evaluation_report.md`).
+> **Kết quả đo được (benchmark thực tế, mô hình `gemini-3.5-flash-lite`):** Tỷ lệ trích dẫn ảo đo được là **0.0%** ở cả 3 phương pháp (mọi mã arXiv đều được xác thực tồn tại qua arXiv API); tỷ lệ Claim không có bằng chứng giảm từ **100.0%** (Baseline 1) xuống **0.0%** (xem `../08_evaluation_report/evaluation_report.md`).
 
 ---
 

@@ -3,7 +3,7 @@
 > **Tài liệu Đặc tả Nghiên cứu Khoa học Hoàn chỉnh (10 Phần Chuẩn)**  
 > **Được sinh tự động và hoàn thiện qua 5 vòng lặp SpecResearch Loop**  
 > **Trạng thái thẩm định:** `APPROVED` bởi Hội đồng 5 AI Judges độc lập  
-> **Ngày phê duyệt:** 2026-09-01 | **Phiên bản:** v1.0.0
+> **Ngày phê duyệt:** 2026-09-03 | **Phiên bản:** v1.1.0
 
 ---
 
@@ -105,10 +105,10 @@ flowchart TD
 Mọi tuyên bố khoa học trong SpecResearch Loop đều đáp ứng tiêu chuẩn kiểm chứng Popper:
 
 ### Claim 1: Giảm thiểu Trích dẫn Ảo
-- **Tuyên bố:** SpecResearch Loop giúp giảm tỷ lệ trích dẫn ảo từ 36.0% (Single-prompt) xuống dưới 3.0%.
-- **Baseline:** Single-prompt GPT-4o-mini & Zero-shot Llama-3-8B.
+- **Tuyên bố:** SpecResearch Loop đảm bảo mọi trích dẫn trong spec cuối đều là mã arXiv thật nhờ cơ chế xác thực arXiv API; tỷ lệ trích dẫn ảo đo được là **0.0%** trên benchmark 5 đề tài (mô hình `gemini-3.5-flash-lite`).
+- **Baseline:** Single-prompt & Linear Chain (cùng mô hình `gemini-3.5-flash-lite`).
 - **Metric:** Citation Hallucination Rate (%) = `(Số trích dẫn không tồn tại / Tổng số trích dẫn) * 100`.
-- **Bằng chứng:** Đối soát 100% siêu dữ liệu qua ArXiv REST API và Semantic Scholar Open Research Corpus.
+- **Bằng chứng:** Đối soát 100% siêu dữ liệu qua ArXiv REST API (xem `results/07_baselines/benchmark_results.json`).
 - **Điều kiện bác bỏ (Rejection Condition):** Tỷ lệ trích dẫn ảo trên tập kiểm thử 100 đề tài lớn hơn 5.0%.
 
 ### Claim 2: Tiết kiệm Thời gian Tính toán Lại (Recompute Efficiency)
@@ -124,8 +124,8 @@ Mọi tuyên bố khoa học trong SpecResearch Loop đều đáp ứng tiêu ch
 
 ### TN1: Baseline Comparison (Đánh giá Đối sánh Cơ sở)
 - **Mục tiêu:** Đo lường tỷ lệ lỗi trích dẫn và tính đầy đủ cấu trúc giữa Single-prompt, Linear Chain và SpecResearch Loop.
-- **Quy trình:** Chạy 50 ý tưởng nghiên cứu mẫu qua 3 phương pháp; trích xuất toàn bộ citation và kiểm tra sự tồn tại trên arXiv.
-- **Kết quả kỳ vọng:** SpecResearch Loop đạt F1-score trích dẫn > 0.95; điểm cấu trúc đạt 9.8/10.
+- **Quy trình:** Chạy 5 ý tưởng nghiên cứu mẫu qua 3 phương pháp; trích xuất toàn bộ citation và kiểm tra sự tồn tại trên arXiv.
+- **Kết quả kỳ vọng:** SpecResearch Loop đạt F1-score trích dẫn > 0.95; điểm cấu trúc đạt 10.0/10.
 
 ### TN2: Multi-Judge Diagnostic Evaluation (Đánh giá Hiệu quả 5 Thẩm phán)
 - **Mục tiêu:** Đo lường tỷ lệ phát hiện vấn đề (Issues) của từng thẩm phán riêng lẻ so với 1 thẩm phán tổng hợp.
@@ -182,6 +182,7 @@ Hội đồng thẩm định 5 AI Judges đã tiến hành phản biện độc 
 | 5 | **Conference Readiness** | Originality, Soundness, Clarity | `ACCEPT` | Đạt tiêu chuẩn cấu trúc của các hội nghị quốc tế hàng đầu. |
 
 **Quyết định cuối cùng của Người dùng (Human Decision Log):**  
+> *Bản spec mẫu này là spec về chính hệ thống SpecResearch Loop (meta-spec), được sinh trong một phiên chạy riêng — không trùng với 3 use case trong `04_use_cases/`.*
 - `ACTION_01`: Xác nhận 8 Thẻ đặc tả ban đầu (CONFIRMED).
 - `ACTION_02`: Chọn Hướng Gap D (Kết hợp toàn diện & Tối ưu GPU).
 - `ACTION_03`: Chấp nhận đề xuất của Contribution Judge về việc thu hẹp phạm vi bài toán.

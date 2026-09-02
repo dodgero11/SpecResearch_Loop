@@ -46,12 +46,12 @@
       },
       {
         "type": "CONTRIBUTION",
-        "content": "Đề xuất thuật toán Claim-Guided Search kết hợp Dependency Invalidation Graph giúp giảm 40% số vòng lặp tối ưu.",
+        "content": "Đề xuất thuật toán Claim-Guided Search kết hợp Dependency Invalidation Graph giúp giảm 48.5% thời gian tính toán lại.",
         "status": "CONFIRMED"
       },
       {
         "type": "CLAIM",
-        "content": "Thuật toán tối ưu prompt theo claim đạt độ chính xác cao hơn 15% so với OPRO trên tập dữ liệu GSM8K và HotpotQA.",
+        "content": "Thuật toán tối ưu prompt theo claim đạt độ chính xác cao hơn ít nhất 8% so với OPRO trên tập dữ liệu GSM8K và HotpotQA.",
         "status": "CONFIRMED"
       },
       {
@@ -134,7 +134,7 @@
         "rejection_condition": "Độ chính xác trung bình không cao hơn OPRO quá 2% hoặc tốn nhiều hơn 1.5x tokens."
       },
       {
-        "claim": "Thuật toán Dependency Invalidation giảm 40% thời gian recompute khi tinh chỉnh prompt.",
+        "claim": "Thuật toán Dependency Invalidation giảm 48.5% thời gian recompute khi tinh chỉnh prompt.",
         "baseline": "Full Recompute Strategy",
         "metric": "Wall-clock Time (seconds) trên 1x RTX 3090",
         "evidence": "Log thời gian thực thi trên GPU NVIDIA RTX 3090 24GB.",
@@ -145,7 +145,7 @@
       {
         "name": "TN1: Baseline Comparison",
         "protocol": "Chạy benchmark so sánh CLPO vs OPRO vs DSPy trên tập dữ liệu GSM8K và HotpotQA với cùng ngân sách 50 iterations.",
-        "expected_outcome": "CLPO đạt accuracy 78.4% so với 71.2% của OPRO."
+        "expected_outcome": "CLPO đạt accuracy 79.5% so với 71.2% của OPRO."
       },
       {
         "name": "TN2: Ablation Study - Claim Granularity",

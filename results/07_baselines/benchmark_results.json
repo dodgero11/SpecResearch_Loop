@@ -1,29 +1,29 @@
 {
-  "benchmark_timestamp": "2026-09-01 16:11:04",
+  "benchmark_timestamp": "2026-09-03 05:59:19",
   "num_ideas_evaluated": 5,
   "baseline_1_single_prompt": {
-    "avg_unsupported_claim_rate": 42.5,
-    "avg_citation_hallucination_rate": 36.0,
-    "avg_hardware_feasibility_rate": 40.0,
-    "avg_rejection_condition_coverage": 15.0,
-    "avg_structural_completeness_score": 5.8,
-    "avg_latency_seconds": 2.1
+    "avg_unsupported_claim_rate": 100.0,
+    "avg_citation_hallucination_rate": 0.0,
+    "avg_hardware_feasibility_rate": 80.0,
+    "avg_rejection_condition_coverage": 20.0,
+    "avg_structural_completeness_score": 8.8,
+    "avg_latency_seconds": 6.9
   },
   "baseline_2_linear_chain": {
-    "avg_unsupported_claim_rate": 24.0,
-    "avg_citation_hallucination_rate": 22.5,
-    "avg_hardware_feasibility_rate": 65.0,
-    "avg_rejection_condition_coverage": 48.0,
-    "avg_structural_completeness_score": 7.4,
-    "avg_latency_seconds": 4.5
-  },
-  "specresearch_loop_ours": {
-    "avg_unsupported_claim_rate": 3.2,
-    "avg_citation_hallucination_rate": 2.1,
+    "avg_unsupported_claim_rate": 0.0,
+    "avg_citation_hallucination_rate": 0.0,
     "avg_hardware_feasibility_rate": 100.0,
     "avg_rejection_condition_coverage": 100.0,
-    "avg_structural_completeness_score": 9.8,
-    "avg_latency_seconds": 8.2
+    "avg_structural_completeness_score": 10.0,
+    "avg_latency_seconds": 20.86
+  },
+  "specresearch_loop_ours": {
+    "avg_unsupported_claim_rate": 0.0,
+    "avg_citation_hallucination_rate": 0.0,
+    "avg_hardware_feasibility_rate": 100.0,
+    "avg_rejection_condition_coverage": 100.0,
+    "avg_structural_completeness_score": 10.0,
+    "avg_latency_seconds": 52.04
   },
   "detailed_results": {
     "baseline_1": [
@@ -31,56 +31,66 @@
         "method": "Baseline 1: Single-Prompt",
         "idea_id": "IDEA-01",
         "title": "Claim-Guided Prompt Optimization",
-        "unsupported_claim_rate": 42.5,
-        "citation_hallucination_rate": 36.0,
-        "hardware_feasibility_rate": 40.0,
-        "rejection_condition_coverage": 15.0,
-        "structural_completeness_score": 5.8,
-        "latency_seconds": 2.1
+        "unsupported_claim_rate": 100.0,
+        "citation_hallucination_rate": 0.0,
+        "citations_found": 4,
+        "citations_hallucinated": 0,
+        "hardware_feasibility_rate": 100.0,
+        "rejection_condition_coverage": 0.0,
+        "structural_completeness_score": 9,
+        "latency_seconds": 5.91
       },
       {
         "method": "Baseline 1: Single-Prompt",
         "idea_id": "IDEA-02",
         "title": "Automated Citation & Fact Verifier",
-        "unsupported_claim_rate": 42.5,
-        "citation_hallucination_rate": 36.0,
-        "hardware_feasibility_rate": 40.0,
-        "rejection_condition_coverage": 15.0,
-        "structural_completeness_score": 5.8,
-        "latency_seconds": 2.1
+        "unsupported_claim_rate": 100.0,
+        "citation_hallucination_rate": 0.0,
+        "citations_found": 3,
+        "citations_hallucinated": 0,
+        "hardware_feasibility_rate": 100.0,
+        "rejection_condition_coverage": 0.0,
+        "structural_completeness_score": 10,
+        "latency_seconds": 7.66
       },
       {
         "method": "Baseline 1: Single-Prompt",
         "idea_id": "IDEA-03",
         "title": "Whiteboard-to-Spec Multimodal Agent",
-        "unsupported_claim_rate": 42.5,
-        "citation_hallucination_rate": 36.0,
-        "hardware_feasibility_rate": 40.0,
-        "rejection_condition_coverage": 15.0,
-        "structural_completeness_score": 5.8,
-        "latency_seconds": 2.1
+        "unsupported_claim_rate": 100.0,
+        "citation_hallucination_rate": 0.0,
+        "citations_found": 4,
+        "citations_hallucinated": 0,
+        "hardware_feasibility_rate": 100.0,
+        "rejection_condition_coverage": 0.0,
+        "structural_completeness_score": 8,
+        "latency_seconds": 7.21
       },
       {
         "method": "Baseline 1: Single-Prompt",
         "idea_id": "IDEA-04",
         "title": "Dependency Invalidation Graph for Spec Refinement",
-        "unsupported_claim_rate": 42.5,
-        "citation_hallucination_rate": 36.0,
-        "hardware_feasibility_rate": 40.0,
-        "rejection_condition_coverage": 15.0,
-        "structural_completeness_score": 5.8,
-        "latency_seconds": 2.1
+        "unsupported_claim_rate": 100.0,
+        "citation_hallucination_rate": 0.0,
+        "citations_found": 2,
+        "citations_hallucinated": 0,
+        "hardware_feasibility_rate": 100.0,
+        "rejection_condition_coverage": 100.0,
+        "structural_completeness_score": 9,
+        "latency_seconds": 6.82
       },
       {
         "method": "Baseline 1: Single-Prompt",
         "idea_id": "IDEA-05",
         "title": "Hardware-Aware LLM Inference Scheduler",
-        "unsupported_claim_rate": 42.5,
-        "citation_hallucination_rate": 36.0,
-        "hardware_feasibility_rate": 40.0,
-        "rejection_condition_coverage": 15.0,
-        "structural_completeness_score": 5.8,
-        "latency_seconds": 2.1
+        "unsupported_claim_rate": 100.0,
+        "citation_hallucination_rate": 0.0,
+        "citations_found": 3,
+        "citations_hallucinated": 0,
+        "hardware_feasibility_rate": 0.0,
+        "rejection_condition_coverage": 0.0,
+        "structural_completeness_score": 8,
+        "latency_seconds": 6.92
       }
     ],
     "baseline_2": [
@@ -88,56 +98,66 @@
         "method": "Baseline 2: Linear Chain",
         "idea_id": "IDEA-01",
         "title": "Claim-Guided Prompt Optimization",
-        "unsupported_claim_rate": 24.0,
-        "citation_hallucination_rate": 22.5,
-        "hardware_feasibility_rate": 65.0,
-        "rejection_condition_coverage": 48.0,
-        "structural_completeness_score": 7.4,
-        "latency_seconds": 4.5
+        "unsupported_claim_rate": 0.0,
+        "citation_hallucination_rate": 0.0,
+        "citations_found": 4,
+        "citations_hallucinated": 0,
+        "hardware_feasibility_rate": 100.0,
+        "rejection_condition_coverage": 100.0,
+        "structural_completeness_score": 10,
+        "latency_seconds": 19.64
       },
       {
         "method": "Baseline 2: Linear Chain",
         "idea_id": "IDEA-02",
         "title": "Automated Citation & Fact Verifier",
-        "unsupported_claim_rate": 24.0,
-        "citation_hallucination_rate": 22.5,
-        "hardware_feasibility_rate": 65.0,
-        "rejection_condition_coverage": 48.0,
-        "structural_completeness_score": 7.4,
-        "latency_seconds": 4.5
+        "unsupported_claim_rate": 0.0,
+        "citation_hallucination_rate": 0.0,
+        "citations_found": 3,
+        "citations_hallucinated": 0,
+        "hardware_feasibility_rate": 100.0,
+        "rejection_condition_coverage": 100.0,
+        "structural_completeness_score": 10,
+        "latency_seconds": 20.62
       },
       {
         "method": "Baseline 2: Linear Chain",
         "idea_id": "IDEA-03",
         "title": "Whiteboard-to-Spec Multimodal Agent",
-        "unsupported_claim_rate": 24.0,
-        "citation_hallucination_rate": 22.5,
-        "hardware_feasibility_rate": 65.0,
-        "rejection_condition_coverage": 48.0,
-        "structural_completeness_score": 7.4,
-        "latency_seconds": 4.5
+        "unsupported_claim_rate": 0.0,
+        "citation_hallucination_rate": 0.0,
+        "citations_found": 4,
+        "citations_hallucinated": 0,
+        "hardware_feasibility_rate": 100.0,
+        "rejection_condition_coverage": 100.0,
+        "structural_completeness_score": 10,
+        "latency_seconds": 21.72
       },
       {
         "method": "Baseline 2: Linear Chain",
         "idea_id": "IDEA-04",
         "title": "Dependency Invalidation Graph for Spec Refinement",
-        "unsupported_claim_rate": 24.0,
-        "citation_hallucination_rate": 22.5,
-        "hardware_feasibility_rate": 65.0,
-        "rejection_condition_coverage": 48.0,
-        "structural_completeness_score": 7.4,
-        "latency_seconds": 4.5
+        "unsupported_claim_rate": 0.0,
+        "citation_hallucination_rate": 0.0,
+        "citations_found": 4,
+        "citations_hallucinated": 0,
+        "hardware_feasibility_rate": 100.0,
+        "rejection_condition_coverage": 100.0,
+        "structural_completeness_score": 10,
+        "latency_seconds": 21.39
       },
       {
         "method": "Baseline 2: Linear Chain",
         "idea_id": "IDEA-05",
         "title": "Hardware-Aware LLM Inference Scheduler",
-        "unsupported_claim_rate": 24.0,
-        "citation_hallucination_rate": 22.5,
-        "hardware_feasibility_rate": 65.0,
-        "rejection_condition_coverage": 48.0,
-        "structural_completeness_score": 7.4,
-        "latency_seconds": 4.5
+        "unsupported_claim_rate": 0.0,
+        "citation_hallucination_rate": 0.0,
+        "citations_found": 3,
+        "citations_hallucinated": 0,
+        "hardware_feasibility_rate": 100.0,
+        "rejection_condition_coverage": 100.0,
+        "structural_completeness_score": 10,
+        "latency_seconds": 20.93
       }
     ],
     "specresearch_loop": [
@@ -145,56 +165,66 @@
         "method": "SpecResearch Loop (Ours)",
         "idea_id": "IDEA-01",
         "title": "Claim-Guided Prompt Optimization",
-        "unsupported_claim_rate": 3.2,
-        "citation_hallucination_rate": 2.1,
+        "unsupported_claim_rate": 0.0,
+        "citation_hallucination_rate": 0.0,
+        "citations_found": 4,
+        "citations_hallucinated": 0,
         "hardware_feasibility_rate": 100.0,
         "rejection_condition_coverage": 100.0,
-        "structural_completeness_score": 9.8,
-        "latency_seconds": 8.2
+        "structural_completeness_score": 10,
+        "latency_seconds": 140.08
       },
       {
         "method": "SpecResearch Loop (Ours)",
         "idea_id": "IDEA-02",
         "title": "Automated Citation & Fact Verifier",
-        "unsupported_claim_rate": 3.2,
-        "citation_hallucination_rate": 2.1,
+        "unsupported_claim_rate": 0.0,
+        "citation_hallucination_rate": 0.0,
+        "citations_found": 4,
+        "citations_hallucinated": 0,
         "hardware_feasibility_rate": 100.0,
         "rejection_condition_coverage": 100.0,
-        "structural_completeness_score": 9.8,
-        "latency_seconds": 8.2
+        "structural_completeness_score": 10,
+        "latency_seconds": 29.34
       },
       {
         "method": "SpecResearch Loop (Ours)",
         "idea_id": "IDEA-03",
         "title": "Whiteboard-to-Spec Multimodal Agent",
-        "unsupported_claim_rate": 3.2,
-        "citation_hallucination_rate": 2.1,
+        "unsupported_claim_rate": 0.0,
+        "citation_hallucination_rate": 0.0,
+        "citations_found": 4,
+        "citations_hallucinated": 0,
         "hardware_feasibility_rate": 100.0,
         "rejection_condition_coverage": 100.0,
-        "structural_completeness_score": 9.8,
-        "latency_seconds": 8.2
+        "structural_completeness_score": 10,
+        "latency_seconds": 29.39
       },
       {
         "method": "SpecResearch Loop (Ours)",
         "idea_id": "IDEA-04",
         "title": "Dependency Invalidation Graph for Spec Refinement",
-        "unsupported_claim_rate": 3.2,
-        "citation_hallucination_rate": 2.1,
+        "unsupported_claim_rate": 0.0,
+        "citation_hallucination_rate": 0.0,
+        "citations_found": 4,
+        "citations_hallucinated": 0,
         "hardware_feasibility_rate": 100.0,
         "rejection_condition_coverage": 100.0,
-        "structural_completeness_score": 9.8,
-        "latency_seconds": 8.2
+        "structural_completeness_score": 10,
+        "latency_seconds": 29.21
       },
       {
         "method": "SpecResearch Loop (Ours)",
         "idea_id": "IDEA-05",
         "title": "Hardware-Aware LLM Inference Scheduler",
-        "unsupported_claim_rate": 3.2,
-        "citation_hallucination_rate": 2.1,
+        "unsupported_claim_rate": 0.0,
+        "citation_hallucination_rate": 0.0,
+        "citations_found": 4,
+        "citations_hallucinated": 0,
         "hardware_feasibility_rate": 100.0,
         "rejection_condition_coverage": 100.0,
-        "structural_completeness_score": 9.8,
-        "latency_seconds": 8.2
+        "structural_completeness_score": 10,
+        "latency_seconds": 32.2
       }
     ]
   }

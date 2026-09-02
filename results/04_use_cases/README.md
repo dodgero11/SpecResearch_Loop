@@ -22,6 +22,6 @@ Mỗi file JSON ghi lại **toàn bộ vòng lặp 5 bước** của hệ thốn
 
 ## Cách dùng
 
-- **Chạy benchmark:** `eval/benchmark_baselines.py` (xem `../07_baselines/`) dùng các ý tưởng mẫu tương tự để đối sánh 3 phương pháp.
+- **Chạy benchmark:** `../07_baselines/benchmark_baselines.py` dùng các ý tưởng mẫu tương tự để đối sánh 3 phương pháp.
 - **Demo thủ công:** Nhập `raw_idea` của từng use case vào website (Bước 1) và đi theo luồng 6 bước để tái tạo kết quả.
 - **Kiểm thử AI pipeline:** `ai_service/test_ai_pipeline.py` (chạy với `USE_MOCK_AI=True`).

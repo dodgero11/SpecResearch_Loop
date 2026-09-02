@@ -2,7 +2,7 @@
 
 Tài liệu này định nghĩa giao thức kết nối (API Contract) giữa **NestJS Backend** và **Python AI Microservice (`ai_service`)**.
 
-Dịch vụ `ai_service` đóng vai trò là động cơ xử lý AI độc lập, điều khiển luồng Multi-Agent 5 vòng lặp, tích hợp tìm kiếm minh chứng thời gian thực qua ArXiv API và thực thi các AI Judges phản biện dựa trên mô hình ngôn ngữ lớn `gemini-3.6-flash`.
+Dịch vụ `ai_service` đóng vai trò là động cơ xử lý AI độc lập, điều khiển luồng Multi-Agent 5 vòng lặp, tích hợp tìm kiếm minh chứng thời gian thực qua ArXiv API và thực thi các AI Judges phản biện dựa trên mô hình ngôn ngữ lớn `gemini-3.5-flash-lite`.
 
 ---
 
@@ -15,63 +15,88 @@ Dịch vụ `ai_service` đóng vai trò là động cơ xử lý AI độc lậ
 ### Cấu hình chế độ Mock dữ liệu
 Để chuyển đổi chế độ Mock Data và kết nối Live API, cấu hình biến môi trường trong file `.env` của `ai_service`:
 *   `USE_MOCK_AI=True`: Trả về dữ liệu mô phỏng cấu trúc ngay lập tức, không tốn Token và không yêu cầu key thật.
-*   `USE_MOCK_AI=False`: Gọi API Gemini và ArXiv thật. Yêu cầu cung cấp `GEMINI_API_KEY` và `GEMINI_MODEL=gemini-3.6-flash`.
+*   `USE_MOCK_AI=False`: Gọi API Gemini và ArXiv thật. Yêu cầu cung cấp `GEMINI_API_KEY` và `GEMINI_MODEL=gemini-3.5-flash-lite`.
 
 ---
 
-## 2. Chi Tiết 5 API Endpoints (Vòng 1 - Vòng 5)
+## 2. Chi Tiết Các API Endpoints (Vòng 1 - Vòng 5)
 
 ### Vòng 1 — Nhập Ý Tưởng & Làm Rõ (Clarify & Decompose)
-*   **Endpoint:** `POST /ai/v1/clarify`
-*   **Mục đích:** Nhận ý tưởng thô từ người dùng, diễn giải lại dưới dạng học thuật khoa học học, phân rã thành các thẻ cơ bản ban đầu (`PROBLEM`, `RESEARCH_QUESTION`, `GAP_CANDIDATE`) và sinh ra 2-3 câu hỏi để làm rõ ý tưởng.
 
-#### Request Body (JSON)
+Vòng 1 được tách thành 3 endpoint độc lập (theo `ai-api.md` v2.0):
+
+#### 1a. Hiểu ý tưởng — `POST /ai/v1/clarify/understand`
+*   **Mục đích:** Diễn giải lại ý tưởng thô dưới dạng học thuật, tìm các điểm mơ hồ và chấm độ tin cậy.
+
+**Request Body (JSON):**
 ```json
 {
   "idea": "Xây dựng hệ thống Multi-Agent AI giúp phản biện các bài báo khoa học và tự động phát hiện trích dẫn ảo không có thật."
 }
 ```
 
-#### Response Body (JSON - 200 OK)
+**Response Body (JSON - 200 OK):**
 ```json
 {
   "clarified_idea": "Hệ thống hóa ý tưởng nghiên cứu về: 'Xây dựng hệ thống Multi-Agent AI giúp phản biện các bài báo khoa học và tự động phát hiện trích dẫn ảo không có thật.' thành các thẻ phân rã có bằng chứng thực tế và cấu trúc kiểm tra tính khả thi.",
+  "key_issues": ["Cần xác định baseline rõ ràng", "Cần giới hạn tài nguyên GPU/VRAM"],
+  "confidence": 0.85
+}
+```
+
+#### 1b. Sinh câu hỏi xác nhận — `POST /ai/v1/clarify/questions`
+*   **Mục đích:** Sinh 2-3 câu hỏi trắc nghiệm (kèm lựa chọn `Other` ở cuối) để làm rõ giả định, tác vụ và ràng buộc.
+
+**Request Body (JSON):**
+```json
+{
+  "clarified_idea": "Hệ thống hóa ý tưởng nghiên cứu về: 'Xây dựng hệ thống Multi-Agent AI giúp phản biện các bài báo khoa học...'"
+}
+```
+
+**Response Body (JSON - 200 OK):**
+```json
+{
   "questions": [
     {
       "question": "Mô hình LLM nào sẽ làm baseline chính cho nghiên cứu này?",
       "example": "Llama-3-8B-Instruct hoặc GPT-4o-mini",
-      "options": {
-        "options": ["GPT-4o-mini", "Llama-3-8B-Instruct", "Mistral-7B-Instruct"],
-        "allow_other": true
-      }
-    },
-    {
-      "question": "Tác vụ chính cần đánh giá hiệu năng và độ chính xác là gì?",
-      "example": "Xác minh tuyên bố và trích dẫn khoa học tự động",
-      "options": {
-        "options": ["Text Summarization", "Evidence Verification", "Code Generation"],
-        "allow_other": true
-      }
+      "options": ["GPT-4o-mini", "Llama-3-8B-Instruct", "Mistral-7B-Instruct", "Other"]
     }
-  ],
+  ]
+}
+```
+
+#### 1c. Phân rã thành 8 thẻ — `POST /ai/v1/decompose`
+*   **Mục đích:** Tách ý tưởng đã làm rõ thành đúng 8 thẻ đặc tả cố định (`PROBLEM`, `RESEARCH_QUESTION`, `GAP_CANDIDATE`, `CONTRIBUTION`, `CLAIM`, `EVIDENCE`, `CONSTRAINT`, `OPEN_QUESTION`), tất cả trạng thái `PROPOSED`.
+
+**Request Body (JSON):**
+```json
+{
+  "idea": "Xây dựng hệ thống Multi-Agent AI giúp phản biện các bài báo khoa học...",
+  "clarifiedIdea": "Hệ thống hóa ý tưởng nghiên cứu về: '...'",
+  "answers": []
+}
+```
+
+**Response Body (JSON - 200 OK):**
+```json
+{
   "cards": [
     {
       "type": "PROBLEM",
       "content": "Đánh giá và hoàn thiện ý tưởng nghiên cứu: Xây dựng hệ thống Multi-Agent AI giúp phản biện các bài báo khoa học và tự động phát hiện trích dẫn ảo không có thật.",
-      "status": "PROPOSED",
-      "metadata": null
+      "status": "PROPOSED"
     },
     {
       "type": "RESEARCH_QUESTION",
       "content": "Làm thế nào để kết hợp Multi-Agent AI System và vòng lặp xác nhận của con người nhằm giảm thiểu citations ảo?",
-      "status": "PROPOSED",
-      "metadata": null
+      "status": "PROPOSED"
     },
     {
       "type": "GAP_CANDIDATE",
       "content": "Các hệ thống AI hiện tại chưa tối ưu tài nguyên VRAM/Token cho việc đánh giá chất lượng spec tự động trên GPU cá nhân.",
-      "status": "PROPOSED",
-      "metadata": null
+      "status": "PROPOSED"
     }
   ]
 }
@@ -105,20 +130,11 @@ Dịch vụ `ai_service` đóng vai trò là động cơ xử lý AI độc lậ
       "missing_points": "Chưa nghiên cứu tối ưu hóa tài nguyên phần cứng GPU và phân rã stale-fresh.",
       "source_url": "https://arxiv.org/abs/2401.12345"
     }
-  ],
-  "proposed_gaps": [
-    {
-      "gap_title": "Tối ưu hóa tài nguyên GPU cá nhân (1x RTX 3090) bằng cơ chế Stale-Fresh Invalidation",
-      "description": "Tập trung thiết kế đồ thị phụ thuộc để tránh tính toán lại toàn bộ spec khi chỉnh sửa một node.",
-      "example_selection": "Đồng ý hướng tối ưu tài nguyên",
-      "options": {
-        "options": ["Đồng ý chọn Gap này", "Bác bỏ", "Cần điều chỉnh thêm"],
-        "allow_other": true
-      }
-    }
   ]
 }
 ```
+
+> **Lưu ý:** Các hướng Research Gap (A/B/C/D) được sinh bởi endpoint riêng `POST /ai/v1/gap-analysis` (trả về `directions`), không nằm trong response của `/related-works`.
 
 ---
 
@@ -308,7 +324,7 @@ export class AppModule {}
 ```
 
 ### Bước 2: Viết Adapter gọi sang AI Microservice
-Thay thế bộ adapter mock nội bộ `LocalLlmAdapter` trong [local.adapters.ts](file:///D:/projects/SpecResearch_Loop/SpecResearch_Loop/backend/src/integrations/local.adapters.ts) bằng lời gọi HTTP POST thực tế:
+Thay thế bộ adapter mock nội bộ `LocalLlmAdapter` trong [local.adapters.ts](../../backend/src/integrations/local.adapters.ts) bằng lời gọi HTTP POST thực tế:
 
 ```typescript
 import { Injectable } from '@nestjs/common';
@@ -319,15 +335,23 @@ export class HttpLlmAdapter implements LlmPort {
   private readonly baseUrl = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
 
   async complete(task: string, inputContext: Record<string, unknown>): Promise<LlmResponse> {
-    let endpoint = '/ai/v1/clarify';
+    let endpoint = '/ai/v1/clarify/understand';
     
     // Điều phối Endpoint tương ứng dựa trên tác vụ (task) yêu cầu từ Backend NestJS
     if (task.endsWith('-judge')) {
       endpoint = '/ai/v1/judges/panel';
+    } else if (task === 'clarify-questions') {
+      endpoint = '/ai/v1/clarify/questions';
+    } else if (task === 'decompose') {
+      endpoint = '/ai/v1/decompose';
     } else if (task === 'related-works') {
       endpoint = '/ai/v1/related-works';
+    } else if (task === 'gap-analysis') {
+      endpoint = '/ai/v1/gap-analysis';
     } else if (task === 'spec-experiment') {
       endpoint = '/ai/v1/spec-experiment';
+    } else if (task === 'conflicts') {
+      endpoint = '/ai/v1/conflicts/check';
     } else if (task === 'final-spec') {
       endpoint = '/ai/v1/final-spec';
     }
@@ -370,5 +394,5 @@ Dịch vụ AI Microservice trả về mã trạng thái HTTP tiêu chuẩn tư�
 | :--- | :--- | :--- | :--- |
 | **`400 Bad Request`** | Bad Request | Dữ liệu đầu vào bị thiếu hoặc rỗng. | Kiểm tra payload gửi sang xem có đúng kiểu string/object không. |
 | **`422 Unprocessable Entity`** | Validation Error | Sai cấu trúc JSON Schema (ví dụ: gửi thiếu trường bắt buộc của Pydantic). | Xem chi tiết phản hồi lỗi trả về của FastAPI (chỉ rõ vị trí lỗi `loc` và lý do `msg`) để căn chỉnh lại DTO gửi đi. |
-| **`404 Not Found`** | Model Not Found | Khai báo sai định danh mô hình `GEMINI_MODEL`. | Cấu hình lại `GEMINI_MODEL=gemini-3.6-flash` trong `.env`. |
+| **`404 Not Found`** | Model Not Found | Khai báo sai định danh mô hình `GEMINI_MODEL`. | Cấu hình lại `GEMINI_MODEL=gemini-3.5-flash-lite` trong `.env`. |
 | **`500 Internal Error`** | Internal Server Error | Lỗi cú pháp AI, lỗi từ API bên thứ 3 (Gemini Key bị hết hạn/vượt quá quota). | 1. Đọc log của microservice để kiểm tra.<br>2. NestJS Backend áp dụng cơ chế tự động thử lại (Retry Policy) của Workflow vì đây có thể là lỗi tạm thời (429 Rate Limit). |
