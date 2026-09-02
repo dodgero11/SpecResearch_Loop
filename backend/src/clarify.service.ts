@@ -28,18 +28,24 @@ export class ClarifyService {
       : [];
     const confidence =
       typeof output.confidence === "number" ? output.confidence : null;
-    await this.prisma.clarification.upsert({
-      where: { projectId },
-      create: {
-        projectId,
-        idea,
-        clarifiedIdea,
-        keyIssues,
-        confidence,
-        feedback,
-      },
-      update: { idea, clarifiedIdea, keyIssues, confidence, feedback },
-    });
+    // Purge ALL stale questions (answered or not) atomically with the
+    // clarification upsert. Questions generated from a previous understanding
+    // are semantically invalid once the understanding changes.
+    await this.prisma.$transaction([
+      this.prisma.confirmationQuestion.deleteMany({ where: { projectId } }),
+      this.prisma.clarification.upsert({
+        where: { projectId },
+        create: {
+          projectId,
+          idea,
+          clarifiedIdea,
+          keyIssues,
+          confidence,
+          feedback,
+        },
+        update: { idea, clarifiedIdea, keyIssues, confidence, feedback },
+      }),
+    ]);
     return { clarifiedIdea, keyIssues, confidence };
   }
 

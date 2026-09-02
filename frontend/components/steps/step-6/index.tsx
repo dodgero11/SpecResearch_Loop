@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react'
 import { Header } from '@/components/research-loop/header'
 import { apiPost, apiPostBlob, downloadBlob } from '@/lib/api'
-import { getProjectId } from '@/lib/project'
+import { clearProjectId, getProjectId, setProjectId as saveProjectId } from '@/lib/project'
 import { FinalStepper } from './final-stepper'
 import { FinalSpecList } from './final-spec-list'
 import { LlmSummaryPanel } from './llm-summary-panel'
@@ -20,6 +21,7 @@ type FinalSpecResult = {
 }
 
 export default function StepSix() {
+  const router = useRouter()
   const [projectId, setProjectId] = useState<string | null>(null)
   const [projectChecked, setProjectChecked] = useState(false)
 
@@ -77,6 +79,14 @@ export default function StepSix() {
     downloadBlob(new Blob([jsonString], { type: 'application/json' }), 'spec.json')
   }
 
+  /** Creates a brand-new project via the API, forgets this one, and sends the user to Bước 1 with it. */
+  async function handleCreateNewProject() {
+    clearProjectId()
+    const project = await apiPost<{ id: string; title: string }>('/projects', { title: 'Untitled research' })
+    saveProjectId(project.id)
+    router.push('/')
+  }
+
   return (
     <div className="app-shell">
       <Header />
@@ -118,6 +128,7 @@ export default function StepSix() {
                   onExportPdf={handleExportPdf}
                   onExportMarkdown={handleExportMarkdown}
                   onExportJson={handleExportJson}
+                  onCreateNewProject={handleCreateNewProject}
                 />
               </section>
             </div>

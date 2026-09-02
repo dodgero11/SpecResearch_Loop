@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { CheckCircle2, FileDown, FileJson, FileText, Loader2, Pencil } from 'lucide-react'
+import { CheckCircle2, FileDown, FileJson, FilePlus2, FileText, Loader2, Pencil } from 'lucide-react'
 
 type ConfirmPanelProps = {
   specConfirmed: boolean
@@ -10,11 +10,25 @@ type ConfirmPanelProps = {
   onExportPdf: () => Promise<void>
   onExportMarkdown: () => void
   onExportJson: () => void
+  onCreateNewProject: () => Promise<void>
 }
 
-export function ConfirmPanel({ specConfirmed, onConfirm, onExportPdf, onExportMarkdown, onExportJson }: ConfirmPanelProps) {
+export function ConfirmPanel({ specConfirmed, onConfirm, onExportPdf, onExportMarkdown, onExportJson, onCreateNewProject }: ConfirmPanelProps) {
   const [confirming, setConfirming] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
+  const [creatingProject, setCreatingProject] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+
+  async function handleCreateNewProject() {
+    setCreatingProject(true)
+    setCreateError(null)
+    try {
+      await onCreateNewProject()
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Tạo dự án mới thất bại, thử lại.')
+      setCreatingProject(false)
+    }
+  }
 
   async function handleConfirm() {
     setConfirming(true)
@@ -80,6 +94,16 @@ export function ConfirmPanel({ specConfirmed, onConfirm, onExportPdf, onExportMa
           Xuất JSON
         </button>
       </div>
+
+      {specConfirmed && (
+        <div className="new-project-row">
+          <p>{createError ?? 'Đã chốt xong dự án này. Muốn bắt đầu nghiên cứu mới?'}</p>
+          <button type="button" className="outline-action" disabled={creatingProject} onClick={handleCreateNewProject}>
+            {creatingProject ? <Loader2 className="spin-icon" size={15} /> : <FilePlus2 size={15} />}
+            {creatingProject ? 'Đang tạo...' : 'Tạo dự án mới'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

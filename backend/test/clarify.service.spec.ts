@@ -17,6 +17,12 @@ describe('ClarifyService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.researchProject.findUnique.mockResolvedValue({ id: 'project-1' });
+    // $transaction(array) executes the array of operations in order.
+    prisma.$transaction.mockImplementation(async (ops: any[]) => {
+      const results = [];
+      for (const op of ops) results.push(await op);
+      return results;
+    });
   });
 
   it('understand calls ai_service and upserts the Clarification', async () => {
@@ -34,6 +40,24 @@ describe('ClarifyService', () => {
       update: { idea: 'my idea', clarifiedIdea: 'Hệ thống hiểu ý tưởng', keyIssues: ['k1', 'k2'], confidence: 0.8, feedback: 'feedback' },
     });
     expect(result).toEqual({ clarifiedIdea: 'Hệ thống hiểu ý tưởng', keyIssues: ['k1', 'k2'], confidence: 0.8 });
+  });
+
+  it('understand purges ALL stale questions atomically with the upsert', async () => {
+    ai.understandIdea.mockResolvedValue({
+      output: { clarified_idea: 'ci', key_issues: [], confidence: 0.5 },
+    });
+    prisma.clarification.upsert.mockResolvedValue({ id: 'clar-1' });
+
+    await service.understand('project-1', 'my idea');
+
+    // deleteMany must purge every question for the project (answered or not).
+    expect(prisma.confirmationQuestion.deleteMany).toHaveBeenCalledWith({
+      where: { projectId: 'project-1' },
+    });
+    // Both operations run inside a single transaction.
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    const ops = prisma.$transaction.mock.calls[0][0];
+    expect(ops).toHaveLength(2);
   });
 
   it('questions maps ai_service question field to title and persists rows', async () => {
