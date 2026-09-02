@@ -48,4 +48,28 @@ export interface AiGateway {
     claimEvidencePairs: unknown[],
     relatedWorks: unknown[],
   ): Promise<AiGatewayResponse>;
+  /** POST /ai/v1/revise-section — { section_type: "contribution", ... } → { revised_content, summary } */
+  contributionRevision(
+    currentContent: unknown,
+    instruction: string,
+    context: Record<string, unknown>,
+  ): Promise<AiGatewayResponse>;
+  /** POST /ai/v1/revise-section — { section_type: "experiment", ... } → { revised_content, summary } */
+  experimentRevision(
+    currentContent: unknown,
+    instruction: string,
+    context: Record<string, unknown>,
+  ): Promise<AiGatewayResponse>;
+  /** POST /ai/v1/revise-section — { section_type: "evidence", ... } → { revised_content, summary } */
+  evidenceRevision(
+    currentContent: unknown,
+    instruction: string,
+    context: Record<string, unknown>,
+  ): Promise<AiGatewayResponse>;
+  /** POST /ai/v1/revise-section — { section_type: "conference-readiness", ... } → { revised_content, summary } */
+  conferenceReadinessRevision(
+    currentContent: unknown,
+    instruction: string,
+    context: Record<string, unknown>,
+  ): Promise<AiGatewayResponse>;
 }

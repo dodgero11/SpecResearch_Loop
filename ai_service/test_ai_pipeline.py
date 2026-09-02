@@ -271,6 +271,23 @@ def test_judges_panel_5_judges():
             assert "suggestion" in issue
 
 # ==========================================
+# 5b. SECTION REVISION TESTS (issue resolution)
+# ==========================================
+
+def test_revise_section_endpoint():
+    payload = {
+        "section_type": "contribution",
+        "current_content": [{"label": "Đóng góp cũ", "claimEvidence": None}],
+        "instruction": "Thu hẹp phạm vi đóng góp",
+        "context": {"problem": "Vấn đề nghiên cứu", "gap": "Khoảng trống"}
+    }
+    response = client.post("/ai/v1/revise-section", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "revised_content" in data
+    assert "summary" in data
+
+# ==========================================
 # 6. VÒNG 5: FINAL SPEC GENERATION TESTS
 # ==========================================
 

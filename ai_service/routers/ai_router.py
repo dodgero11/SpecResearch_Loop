@@ -12,6 +12,7 @@ from schemas.spec_schemas import (
     SpecExperimentRequest, SpecExperimentResponse, ClaimCardSchema, ExperimentSchema,
     FeasibilityRequest, FeasibilityEstimation, SingleClaimExperimentResponse,
     JudgesPanelRequest, JudgesPanelResponse, JudgeResultSchema, IssueSchema, IssueChoice, SeverityEnum, VerdictEnum,
+    ReviseSectionRequest, ReviseSectionResponse,
     FinalSpecRequest, FinalSpecResponse, ClarifyRequest, ClarifyResponse, ClarifyQuestion, QuestionOption
 )
 from services.llm_service import LlmService
@@ -527,6 +528,31 @@ async def run_judges_panel(payload: JudgesPanelRequest, llm: LlmService = Depend
     )
     status = "PARTIAL_FAILURE" if has_major_or_critical else "COMPLETED"
     return JudgesPanelResponse(spec_version_used=1, status=status, judges=judges)
+
+@router.post("/revise-section", response_model=ReviseSectionResponse)
+async def revise_section(payload: ReviseSectionRequest, llm: LlmService = Depends(get_llm_service)):
+    """
+    Revise a spec section (contribution | experiment | evidence | conference-readiness)
+    based on the user's resolution instruction. Returns the revised content in the
+    same shape as the input so the backend can write it back into the spec.
+    """
+    llm = ensure_llm(llm)
+    if not get_use_mock_ai() and llm.api_key:
+        try:
+            return llm.revise_section(
+                section_type=payload.section_type,
+                current_content=payload.current_content,
+                instruction=payload.instruction,
+                context=payload.context or {}
+            )
+        except Exception as e:
+            print(f"[Fallback to Mock] revise-section failed: {e}")
+
+    # Fallback / Mock
+    return ReviseSectionResponse(
+        revised_content=payload.current_content,
+        summary="Mock: nội dung đã được sửa theo yêu cầu."
+    )
 
 # ==========================================
 # VÒNG 5: FINAL SPEC & EXPORT

@@ -115,6 +115,72 @@ export class HttpAiGateway implements AiGateway {
     });
   }
 
+  async contributionRevision(
+    currentContent: unknown,
+    instruction: string,
+    context: Record<string, unknown>,
+  ): Promise<AiGatewayResponse> {
+    return this.reviseSection(
+      "contribution",
+      currentContent,
+      instruction,
+      context,
+    );
+  }
+
+  async experimentRevision(
+    currentContent: unknown,
+    instruction: string,
+    context: Record<string, unknown>,
+  ): Promise<AiGatewayResponse> {
+    return this.reviseSection(
+      "experiment",
+      currentContent,
+      instruction,
+      context,
+    );
+  }
+
+  async evidenceRevision(
+    currentContent: unknown,
+    instruction: string,
+    context: Record<string, unknown>,
+  ): Promise<AiGatewayResponse> {
+    return this.reviseSection(
+      "evidence",
+      currentContent,
+      instruction,
+      context,
+    );
+  }
+
+  async conferenceReadinessRevision(
+    currentContent: unknown,
+    instruction: string,
+    context: Record<string, unknown>,
+  ): Promise<AiGatewayResponse> {
+    return this.reviseSection(
+      "conference-readiness",
+      currentContent,
+      instruction,
+      context,
+    );
+  }
+
+  private async reviseSection(
+    sectionType: string,
+    currentContent: unknown,
+    instruction: string,
+    context: Record<string, unknown>,
+  ): Promise<AiGatewayResponse> {
+    return this.call("/ai/v1/revise-section", {
+      section_type: sectionType,
+      current_content: currentContent,
+      instruction,
+      context,
+    });
+  }
+
   private async call(
     path: string,
     body: Record<string, unknown>,

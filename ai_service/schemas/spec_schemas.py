@@ -228,6 +228,18 @@ class JudgesPanelResponse(BaseModel):
     status: str = Field(default="COMPLETED", description="Trạng thái panel (COMPLETED / PARTIAL_FAILURE)")
     judges: List[JudgeResultSchema] = Field(description="Kết quả chi tiết từ 5 Judges độc lập")
 
+# --- Section Revision (used when a user resolves a judge issue) ---
+
+class ReviseSectionRequest(BaseModel):
+    section_type: str = Field(description="contribution | experiment | evidence | conference-readiness")
+    current_content: Any = Field(description="Current content of the section to revise")
+    instruction: str = Field(description="User's revision instruction")
+    context: Optional[dict] = Field(default=None, description="Additional context (problem, gap, etc.)")
+
+class ReviseSectionResponse(BaseModel):
+    revised_content: Any = Field(description="Revised section content in the same shape as input")
+    summary: str = Field(default="", description="Brief description of what was changed")
+
 # --- Vòng 5: Final Spec ---
 
 class FinalSpecRequest(BaseModel):

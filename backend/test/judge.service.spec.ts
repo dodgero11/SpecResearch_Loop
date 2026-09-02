@@ -23,7 +23,12 @@ describe('JudgeService', () => {
     const prisma = {
       llmAuditLog: { create: jest.fn().mockResolvedValue({ id: 'audit' }) },
       specIteration: { findFirst: jest.fn().mockResolvedValue({ id: 'spec-1' }) },
-      judgeIssue: { create: jest.fn().mockResolvedValue({ id: 'issue-1' }), deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      judgeIssue: {
+        findMany: jest.fn().mockResolvedValue([]),
+        delete: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({ id: 'issue-1' }),
+      },
       specArtifact: { upsert: jest.fn().mockResolvedValue({}) },
     };
     const service = new JudgeService(contextBuilder as never, prisma as never, llm);
@@ -61,7 +66,12 @@ describe('JudgeService', () => {
     const prisma = {
       llmAuditLog: { create: jest.fn().mockResolvedValue({ id: 'audit' }) },
       specIteration: { findFirst: jest.fn().mockResolvedValue({ id: 'spec-1' }) },
-      judgeIssue: { create: jest.fn().mockResolvedValue({ id: 'issue-1' }), deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      judgeIssue: {
+        findMany: jest.fn().mockResolvedValue([]),
+        delete: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({ id: 'issue-1' }),
+      },
       specArtifact: { upsert: jest.fn().mockResolvedValue({}) },
     };
     const service = new JudgeService(contextBuilder as never, prisma as never, llm);
@@ -118,7 +128,12 @@ describe('JudgeService', () => {
     const prisma = {
       llmAuditLog: { create: jest.fn() },
       specIteration: { findFirst: jest.fn().mockResolvedValue({ id: 'spec-1' }) },
-      judgeIssue: { create: jest.fn().mockResolvedValue({ id: 'issue-1' }), deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      judgeIssue: {
+        findMany: jest.fn().mockResolvedValue([]),
+        delete: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({ id: 'issue-1' }),
+      },
     };
     const service = new JudgeService(contextBuilder as never, prisma as never, llm);
 
@@ -127,5 +142,166 @@ describe('JudgeService', () => {
     expect(result.status).toBe('PARTIAL_FAILURE');
     expect(result.judges.find((judge) => judge.type === 'gap')).toMatchObject({ status: 'COMPLETED' });
     expect(result.judges.find((judge) => judge.type === 'evidence')).toMatchObject({ status: 'FAILED' });
+  });
+
+  it('keeps RESOLVED issues resolved, updates OPEN ones, and deletes OPEN ones no longer flagged', async () => {
+    const contextBuilder = {
+      build: jest.fn(),
+      buildPanel: jest.fn().mockResolvedValue({ specVersion: 5, inputContext: {} }),
+    };
+    const llm = {
+      complete: jest.fn(),
+      completePanel: jest.fn().mockResolvedValue({
+        output: {
+          status: 'COMPLETED',
+          judges: [
+            {
+              type: 'gap',
+              verdict: 'REVIEW_REQUIRED',
+              issues: [
+                {
+                  severity: 'MAJOR',
+                  title: 'Same issue',
+                  description: 'Same desc',
+                  suggestion: 'Fix it',
+                  choices: [{ letter: 'A', label: 'Fix', understanding: 'u' }],
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    };
+    const prisma = {
+      llmAuditLog: { create: jest.fn().mockResolvedValue({ id: 'audit' }) },
+      specIteration: { findFirst: jest.fn().mockResolvedValue({ id: 'spec-1' }) },
+      judgeIssue: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'resolved-1', status: 'RESOLVED', title: 'Same issue', description: 'Same desc' },
+          { id: 'open-1', status: 'OPEN', title: 'Old issue', description: 'Old desc' },
+        ]),
+        delete: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({ id: 'new-1' }),
+      },
+      specArtifact: { upsert: jest.fn().mockResolvedValue({}) },
+    };
+    const service = new JudgeService(contextBuilder as never, prisma as never, llm);
+
+    await service.runPanel('project-1');
+
+    // The OPEN issue the judge no longer flags is deleted.
+    expect(prisma.judgeIssue.delete).toHaveBeenCalledWith({ where: { id: 'open-1' } });
+    // The RESOLVED issue matching the re-flagged issue is NOT touched (the
+    // user's decision stands even though the judge flags it again).
+    expect(prisma.judgeIssue.update).not.toHaveBeenCalled();
+    // No new issue is created — the flagged issue matched the resolved row.
+    expect(prisma.judgeIssue.create).not.toHaveBeenCalled();
+  });
+
+  it('adds fallback choices and an Other option when the judge gives none', async () => {
+    const contextBuilder = {
+      build: jest.fn(),
+      buildPanel: jest.fn().mockResolvedValue({ specVersion: 6, inputContext: {} }),
+    };
+    const llm = {
+      complete: jest.fn(),
+      completePanel: jest.fn().mockResolvedValue({
+        output: {
+          status: 'COMPLETED',
+          judges: [
+            {
+              type: 'evidence',
+              verdict: 'REVIEW_REQUIRED',
+              issues: [{ severity: 'MINOR', title: 'No choices', description: 'Desc only' }],
+            },
+          ],
+        },
+      }),
+    };
+    const prisma = {
+      llmAuditLog: { create: jest.fn().mockResolvedValue({ id: 'audit' }) },
+      specIteration: { findFirst: jest.fn().mockResolvedValue({ id: 'spec-1' }) },
+      judgeIssue: {
+        findMany: jest.fn().mockResolvedValue([]),
+        delete: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({ id: 'issue-1' }),
+      },
+      specArtifact: { upsert: jest.fn().mockResolvedValue({}) },
+    };
+    const service = new JudgeService(contextBuilder as never, prisma as never, llm);
+
+    await service.runPanel('project-1');
+
+    expect(prisma.judgeIssue.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        judgeType: 'evidence',
+        title: 'No choices',
+        description: 'Desc only',
+        suggestion: 'Desc only',
+        choices: [
+          { letter: 'A', label: 'Áp dụng đề xuất của Judge', understanding: 'Áp dụng gợi ý sửa đổi mà Judge đưa ra.' },
+          { letter: 'B', label: 'Giữ nguyên nội dung hiện tại', understanding: 'Chấp nhận nội dung hiện tại, không sửa đổi.' },
+          { letter: 'C', label: 'Other', understanding: 'Tự nhập phương án xử lý.' },
+        ],
+      }),
+    });
+  });
+
+  it('rerunJudge persists issues and merges the result into the judge artifact', async () => {
+    const contextBuilder = {
+      build: jest.fn().mockResolvedValue({ specVersion: 3, inputContext: { problem: 'p' } }),
+    };
+    const llm = {
+      complete: jest.fn().mockResolvedValue({
+        output: {
+          type: 'gap',
+          verdict: 'REVIEW_REQUIRED',
+          issues: [{ severity: 'MAJOR', title: 'T', description: 'D', suggestion: 'S' }],
+        },
+        inputTokens: 1,
+        outputTokens: 1,
+      }),
+    };
+    const prisma = {
+      llmAuditLog: { create: jest.fn().mockResolvedValue({ id: 'audit' }) },
+      specIteration: { findFirst: jest.fn().mockResolvedValue({ id: 'spec-1' }) },
+      judgeIssue: {
+        findMany: jest.fn().mockResolvedValue([]),
+        delete: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({ id: 'issue-1' }),
+      },
+      specArtifact: {
+        findUnique: jest.fn().mockResolvedValue({
+          data: { judges: [{ type: 'contribution', status: 'COMPLETED' }] },
+        }),
+        upsert: jest.fn().mockResolvedValue({}),
+      },
+    };
+    const service = new JudgeService(contextBuilder as never, prisma as never, llm);
+
+    const result = await service.rerunJudge('project-1', 'gap');
+
+    expect(result.status).toBe('COMPLETED');
+    // Persisted the re-run issue.
+    expect(prisma.judgeIssue.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ judgeType: 'gap', title: 'T', description: 'D' }),
+    });
+    // Merged into the judge artifact (contribution kept, gap replaced) and FRESH.
+    expect(prisma.specArtifact.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          status: 'FRESH',
+          data: {
+            judges: expect.arrayContaining([
+              expect.objectContaining({ type: 'contribution' }),
+              expect.objectContaining({ type: 'gap' }),
+            ]),
+          },
+        }),
+      }),
+    );
   });
 });

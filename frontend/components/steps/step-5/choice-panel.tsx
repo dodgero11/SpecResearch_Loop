@@ -5,10 +5,10 @@ import Link from 'next/link'
 import { Brain, Check, CheckCircle2, Loader2, UserCircle } from 'lucide-react'
 import type { JudgeIssue } from './data'
 
-// Judge types the backend actually rewrites spec content for on resolve (only
-// "gap" for now — see backend/src/issue.service.ts). Used to tell "issue chưa
+// Judge types the backend actually rewrites spec content for on resolve (all 5
+// judge types now — see backend/src/issue.service.ts). Used to tell "issue chưa
 // hỗ trợ sửa" apart from "đã sửa nhưng bản xem trước bị mất do reload trang".
-const SUPPORTED_REVISION_TYPES = ['gap']
+const SUPPORTED_REVISION_TYPES = ['gap', 'contribution', 'experiment', 'evidence', 'conference-readiness']
 
 type ChoicePanelProps = {
   activeIssue: JudgeIssue | null
@@ -16,15 +16,37 @@ type ChoicePanelProps = {
   onResolve: (issueId: string, choice: string, customChoice?: string) => Promise<void>
 }
 
-/** Turns the raw gapAnalysis object the backend returns into a short readable line. */
-function summarizeGapAnalysis(value: unknown): string {
-  if (!value || typeof value !== 'object') return '(chưa có nội dung)'
-  const gap = value as { limitation?: string; directions?: { letter: string; label: string; selected?: boolean }[] }
-  const parts: string[] = []
-  if (gap.limitation) parts.push(`Hạn chế: "${gap.limitation}"`)
-  const selected = gap.directions?.find((d) => d.selected)
-  if (selected) parts.push(`Hướng đã chọn: ${selected.letter}. ${selected.label}`)
-  return parts.length > 0 ? parts.join(' — ') : '(chưa có nội dung)'
+/** Turns the raw revision content the backend returns into a short readable line. */
+function summarizeRevisionContent(value: unknown): string {
+  if (value === undefined || value === null) return '(chưa có nội dung)'
+  if (typeof value === 'string') return value || '(chưa có nội dung)'
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '(trống)'
+    return value
+      .map((item) => {
+        if (typeof item === 'string') return item
+        if (item && typeof item === 'object') {
+          const record = item as Record<string, unknown>
+          const label = record.label ?? record.name ?? record.title ?? record.claim ?? record.paper_title
+          if (typeof label === 'string' && label) return label
+          if (typeof record.limitation === 'string' && record.limitation) return record.limitation
+        }
+        return JSON.stringify(item)
+      })
+      .join('; ')
+  }
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    const parts: string[] = []
+    if (typeof record.limitation === 'string' && record.limitation) parts.push(`Hạn chế: "${record.limitation}"`)
+    const selected = Array.isArray(record.directions)
+      ? (record.directions as { letter?: string; label?: string; selected?: boolean }[]).find((d) => d.selected)
+      : undefined
+    if (selected) parts.push(`Hướng đã chọn: ${selected.letter}. ${selected.label}`)
+    if (parts.length === 0 && typeof record.summary === 'string' && record.summary) parts.push(record.summary)
+    return parts.length > 0 ? parts.join(' — ') : '(chưa có nội dung)'
+  }
+  return String(value)
 }
 
 export function ChoicePanel({ activeIssue, resolutionDiff, onResolve }: ChoicePanelProps) {
@@ -119,11 +141,11 @@ export function ChoicePanel({ activeIssue, resolutionDiff, onResolve }: ChoicePa
             <div className="version-diff-cols">
               <div className="version-diff-col old">
                 <span className="tag">Trước khi sửa</span>
-                {summarizeGapAnalysis(resolutionDiff.before)}
+                {summarizeRevisionContent(resolutionDiff.before)}
               </div>
               <div className="version-diff-col new">
                 <span className="tag">Sau khi sửa</span>
-                {summarizeGapAnalysis(resolutionDiff.after)}
+                {summarizeRevisionContent(resolutionDiff.after)}
               </div>
             </div>
           </article>

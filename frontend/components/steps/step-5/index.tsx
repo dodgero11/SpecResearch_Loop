@@ -180,6 +180,9 @@ export default function StepFive() {
       }
       setIssues((prev) => prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'RESOLVED' } : issue)))
       setActiveIssueId(issues.find((i) => i.id !== issueId && i.status !== 'RESOLVED')?.id ?? null)
+      // Refresh the temporary spec panel so the user sees the revised content.
+      const temp = await apiGet<RawTemporary>(`/projects/${projectId}/spec/temporary`)
+      setSpecItems(toSpecItems(temp))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Xử lý issue thất bại, thử lại.')
     }

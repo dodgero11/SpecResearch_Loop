@@ -106,7 +106,9 @@ export class LocalAiGateway implements AiGateway {
       output: {
         what_was_done:
           "Các nghiên cứu trước đã tiếp cận vấn đề theo hướng tổng quát.",
-        limitation: "Chưa tối ưu ở mức claim–evidence.",
+        limitation: revisionInstruction
+          ? `Chưa tối ưu ở mức claim–evidence. (Đã sửa theo: ${revisionInstruction})`
+          : "Chưa tối ưu ở mức claim–evidence.",
         why_it_matters: "Giảm hallucination khi trích xuất thông tin từ paper.",
         testable_with:
           "So sánh tỉ lệ unsupported claims trên cùng tập dữ liệu.",
@@ -237,5 +239,76 @@ export class LocalAiGateway implements AiGateway {
       inputTokens: JSON.stringify(claimEvidencePairs).length,
       outputTokens: conflicts.length,
     };
+  }
+
+  private mockRevision(
+    sectionType: string,
+    currentContent: unknown,
+    instruction: string,
+    context: Record<string, unknown>,
+  ): AiGatewayResponse {
+    return {
+      output: {
+        revised_content: currentContent,
+        summary: `Mock: ${sectionType} đã được sửa theo yêu cầu.`,
+      },
+      inputTokens:
+        JSON.stringify(currentContent).length +
+        instruction.length +
+        JSON.stringify(context).length,
+      outputTokens: 1,
+    };
+  }
+
+  async contributionRevision(
+    currentContent: unknown,
+    instruction: string,
+    context: Record<string, unknown>,
+  ): Promise<AiGatewayResponse> {
+    return this.mockRevision(
+      "contribution",
+      currentContent,
+      instruction,
+      context,
+    );
+  }
+
+  async experimentRevision(
+    currentContent: unknown,
+    instruction: string,
+    context: Record<string, unknown>,
+  ): Promise<AiGatewayResponse> {
+    return this.mockRevision(
+      "experiment",
+      currentContent,
+      instruction,
+      context,
+    );
+  }
+
+  async evidenceRevision(
+    currentContent: unknown,
+    instruction: string,
+    context: Record<string, unknown>,
+  ): Promise<AiGatewayResponse> {
+    return this.mockRevision(
+      "evidence",
+      currentContent,
+      instruction,
+      context,
+    );
+  }
+
+  async conferenceReadinessRevision(
+    currentContent: unknown,
+    instruction: string,
+    context: Record<string, unknown>,
+  ): Promise<AiGatewayResponse> {
+    return this.mockRevision(
+      "conference-readiness",
+      currentContent,
+      instruction,
+      context,
+    );
   }
 }

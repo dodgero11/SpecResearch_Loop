@@ -15,6 +15,7 @@ from schemas.spec_schemas import (
     SpecExperimentResponse, ClaimCardSchema, ExperimentSchema, FeasibilityEstimation, FeasibilityRequest,
     SingleClaimExperimentResponse, ConflictCheckResponse, ConflictItem,
     JudgesPanelResponse, JudgeResultSchema, IssueSchema, IssueChoice, SeverityEnum, VerdictEnum,
+    ReviseSectionResponse,
     FinalSpecResponse, ClarifyResponse, ClarifyQuestion, QuestionOption
 )
 
@@ -490,6 +491,12 @@ class LlmService:
                 after=contribution
             )
 
+        elif response_schema == ReviseSectionResponse:
+            return ReviseSectionResponse(
+                revised_content=context.get("current_content", {}),
+                summary="Mock: nội dung đã được sửa theo yêu cầu."
+            )
+
         # Generic default initialization if schema has default constructible fields
         try:
             return response_schema()
@@ -829,6 +836,11 @@ For each of the 5 judges, output JudgeResultSchema:
 - verdict: 'ACCEPT' | 'REVIEW_REQUIRED' | 'REJECT'
 - issues: List of IssueSchema (severity 'CRITICAL'|'MAJOR'|'MINOR', title, description in Vietnamese, suggestion in Vietnamese, flagged_by, choices with letter/label/understanding in Vietnamese).
 
+CRITICAL REQUIREMENTS for every issue you raise:
+1. 'suggestion' MUST be a concrete, actionable fix in Vietnamese — never empty.
+2. 'choices' MUST contain 2-4 resolution options, each with a letter ('A','B','C',...), a label, and an understanding (all in Vietnamese).
+3. The LAST choice MUST be {{"letter": <next letter>, "label": "Other", "understanding": "Tự nhập phương án xử lý."}} so the user can always provide a custom resolution.
+
 Problem: {problem}
 Gap: {gap}
 Contribution: {contribution}
@@ -843,6 +855,31 @@ Experiments: {experiments_text}
             if exp_type not in existing_types:
                 res.judges.append(JudgeResultSchema(type=exp_type, verdict=VerdictEnum.ACCEPT, issues=[]))
         return res
+
+    def revise_section(self, section_type: str, current_content: Any, instruction: str, context: dict) -> ReviseSectionResponse:
+        """Revise a spec section based on the user's resolution instruction."""
+        prompt = f"""
+System: You are a research spec revision assistant. Revise the following {section_type} section
+based on the user's instruction. Return the revised content in the EXACT SAME JSON shape as the input.
+
+Current content:
+{json.dumps(current_content, ensure_ascii=False, indent=2)}
+
+Revision instruction: {instruction}
+
+Additional context:
+Problem: {context.get('problem', '')}
+Gap: {context.get('gap', '')}
+
+Return a JSON with:
+- revised_content: the revised section in the same shape as the input
+- summary: brief Vietnamese description of what was changed
+"""
+        return self.call_gemini_structured(
+            prompt,
+            ReviseSectionResponse,
+            context={"section_type": section_type, "current_content": current_content}
+        )
 
     # ==========================================
     # VÒNG 5: FINAL SPEC & EXPORT

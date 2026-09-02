@@ -223,8 +223,12 @@ export class JudgeService {
 
   /**
    * Persists judge issues as stable JudgeIssue rows so the frontend can resolve
-   * them by id. Delete-then-recreate happens PER judge type: a failed judge keeps
-   * its previously persisted issues instead of losing them to a blanket delete.
+   * them by id. Persistence is idempotent by issue identity (judgeType + title +
+   * description): a re-run that flags the same issue updates the existing row
+   * instead of recreating it, and a RESOLVED issue stays RESOLVED even if the
+   * judge flags it again (the user's decision stands). OPEN issues the judge no
+   * longer flags are removed. A failed judge keeps its previously persisted
+   * issues instead of losing them.
    */
   private async persistIssues(
     projectId: string,
@@ -237,37 +241,169 @@ export class JudgeService {
     if (!spec) return;
     for (const result of results) {
       if (result.status !== "COMPLETED") continue;
-      await this.prisma.judgeIssue.deleteMany({
-        where: {
-          projectId,
-          specIterationId: spec.id,
-          judgeType: result.type,
-          status: { not: "RESOLVED" },
-        },
-      });
-      if (!result.output) continue;
-      const issues = Array.isArray(result.output.issues)
+      const rawIssues = Array.isArray(result.output?.issues)
         ? result.output.issues
         : [];
+      const issues = rawIssues.map((issue) =>
+        this.normalizeIssue(issue as Record<string, unknown>),
+      );
+      const existing: {
+        id: string;
+        status: string;
+        title: string;
+        description: string;
+      }[] = await this.prisma.judgeIssue.findMany({
+        where: { projectId, specIterationId: spec.id, judgeType: result.type },
+      });
+      const flaggedKeys = new Set(issues.map((issue) => this.issueKey(issue)));
+      // Remove OPEN issues the judge no longer flags. RESOLVED issues are kept
+      // as history even when the judge stops flagging them.
+      const remaining: typeof existing = [];
+      for (const row of existing) {
+        if (
+          row.status !== "RESOLVED" &&
+          !flaggedKeys.has(this.issueKeyFromRow(row))
+        ) {
+          await this.prisma.judgeIssue.delete({ where: { id: row.id } });
+        } else {
+          remaining.push(row);
+        }
+      }
       for (const issue of issues) {
-        const record = issue as Record<string, unknown>;
-        await this.prisma.judgeIssue.create({
-          data: {
-            projectId,
-            specIterationId: spec.id,
-            judgeType: result.type,
-            severity: String(record.severity ?? "MINOR"),
-            title: String(record.title ?? record.description ?? ""),
-            description: String(record.description ?? ""),
-            suggestion: String(record.suggestion ?? ""),
-            flaggedBy: String(record.flaggedBy ?? record.flagged_by ?? ""),
-            choices: (Array.isArray(record.choices)
-              ? record.choices
-              : []) as Prisma.InputJsonValue,
-          },
-        });
+        const match = remaining.find(
+          (row) => this.issueKeyFromRow(row) === this.issueKey(issue),
+        );
+        if (match) {
+          // A RESOLVED issue stays resolved — the user's decision stands even
+          // if the judge flags the same thing again on a re-run.
+          if (match.status !== "RESOLVED") {
+            await this.prisma.judgeIssue.update({
+              where: { id: match.id },
+              data: {
+                severity: issue.severity,
+                title: issue.title,
+                description: issue.description,
+                suggestion: issue.suggestion,
+                flaggedBy: issue.flaggedBy,
+                choices: issue.choices as Prisma.InputJsonValue,
+              },
+            });
+          }
+        } else {
+          await this.prisma.judgeIssue.create({
+            data: {
+              projectId,
+              specIterationId: spec.id,
+              judgeType: result.type,
+              severity: issue.severity,
+              title: issue.title,
+              description: issue.description,
+              suggestion: issue.suggestion,
+              flaggedBy: issue.flaggedBy,
+              choices: issue.choices as Prisma.InputJsonValue,
+            },
+          });
+        }
       }
     }
+  }
+
+  /**
+   * Normalizes a raw AI issue into the shape stored on JudgeIssue, guaranteeing
+   * the user can always resolve it: a non-empty `suggestion` and a non-empty
+   * `choices` list that always ends with an "Other" option for custom input.
+   */
+  private normalizeIssue(record: Record<string, unknown>): {
+    severity: string;
+    title: string;
+    description: string;
+    suggestion: string;
+    flaggedBy: string;
+    choices: { letter: string; label: string; understanding: string }[];
+  } {
+    const description = String(record.description ?? "");
+    const title = String(record.title ?? record.description ?? "");
+    const suggestion =
+      String(record.suggestion ?? "") ||
+      description ||
+      "Xem xét lại nội dung liên quan và điều chỉnh cho phù hợp.";
+    let choices = Array.isArray(record.choices)
+      ? record.choices.filter(
+          (
+            choice,
+          ): choice is {
+            letter: string;
+            label: string;
+            understanding?: string;
+          } =>
+            typeof choice === "object" &&
+            choice !== null &&
+            typeof (choice as { letter?: unknown }).letter === "string" &&
+            typeof (choice as { label?: unknown }).label === "string",
+        )
+      : [];
+    if (choices.length === 0) {
+      // The judge gave no usable choices — provide sensible defaults so the
+      // user always has something to resolve with.
+      choices = [
+        {
+          letter: "A",
+          label: "Áp dụng đề xuất của Judge",
+          understanding: "Áp dụng gợi ý sửa đổi mà Judge đưa ra.",
+        },
+        {
+          letter: "B",
+          label: "Giữ nguyên nội dung hiện tại",
+          understanding: "Chấp nhận nội dung hiện tại, không sửa đổi.",
+        },
+        {
+          letter: "C",
+          label: "Other",
+          understanding: "Tự nhập phương án xử lý.",
+        },
+      ];
+    } else if (
+      !choices.some((choice) => String(choice.label).toLowerCase() === "other")
+    ) {
+      // Always guarantee an "Other" option for custom user input.
+      choices.push({
+        letter: this.nextChoiceLetter(choices),
+        label: "Other",
+        understanding: "Tự nhập phương án xử lý.",
+      });
+    }
+    return {
+      severity: String(record.severity ?? "MINOR"),
+      title,
+      description,
+      suggestion,
+      flaggedBy: String(record.flaggedBy ?? record.flagged_by ?? ""),
+      choices: choices.map((choice) => ({
+        letter: String(choice.letter),
+        label: String(choice.label),
+        understanding: String(choice.understanding ?? ""),
+      })),
+    };
+  }
+
+  /** Stable identity for an issue within a judge type (title + description). */
+  private issueKey(issue: { title: string; description: string }): string {
+    return `${issue.title.trim()}\u0000${issue.description.trim()}`;
+  }
+
+  private issueKeyFromRow(row: {
+    title: string;
+    description: string;
+  }): string {
+    return `${row.title.trim()}\u0000${row.description.trim()}`;
+  }
+
+  private nextChoiceLetter(choices: { letter: string }[]): string {
+    const used = new Set(choices.map((choice) => choice.letter.toUpperCase()));
+    for (const letter of ["A", "B", "C", "D", "E"]) {
+      if (!used.has(letter)) return letter;
+    }
+    return String.fromCharCode(65 + choices.length);
   }
 
   /**
@@ -298,6 +434,65 @@ export class JudgeService {
       update: {
         status: "FRESH",
         data: { judges: results } as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  /**
+   * Re-runs a single judge after an issue is resolved, persists its issues
+   * idempotently, and merges the result into the judge artifact so the judge
+   * node is FRESH again. Forward-only: no step needs to be re-run by the
+   * frontend after a resolve.
+   */
+  async rerunJudge(projectId: string, type: JudgeType): Promise<JudgeResult> {
+    const result = await this.runJudge(projectId, type);
+    if (result.status === "COMPLETED") {
+      await this.persistIssues(projectId, result.specVersionUsed, [result]);
+      await this.mergeJudgeArtifact(projectId, result.specVersionUsed, result);
+    }
+    return result;
+  }
+
+  /**
+   * Merges a single judge result into the persisted judge artifact (replacing
+   * the matching judge type) and marks the judge node FRESH.
+   */
+  private async mergeJudgeArtifact(
+    projectId: string,
+    specVersion: number,
+    result: JudgeResult,
+  ): Promise<void> {
+    const spec = await this.prisma.specIteration.findFirst({
+      where: { projectId, version: specVersion },
+    });
+    if (!spec) return;
+    const existing = await this.prisma.specArtifact.findUnique({
+      where: {
+        specIterationId_node: { specIterationId: spec.id, node: "judge" },
+      },
+    });
+    const existingData = (existing?.data ?? {}) as Record<string, unknown>;
+    const judges = Array.isArray(existingData.judges) ? existingData.judges : [];
+    const merged = judges
+      .filter((judge) => {
+        const record = judge as Record<string, unknown>;
+        return record.type !== result.type;
+      })
+      .concat([result]);
+    await this.prisma.specArtifact.upsert({
+      where: {
+        specIterationId_node: { specIterationId: spec.id, node: "judge" },
+      },
+      create: {
+        projectId,
+        specIterationId: spec.id,
+        node: "judge",
+        status: "FRESH",
+        data: { judges: merged } as Prisma.InputJsonValue,
+      },
+      update: {
+        status: "FRESH",
+        data: { judges: merged } as Prisma.InputJsonValue,
       },
     });
   }

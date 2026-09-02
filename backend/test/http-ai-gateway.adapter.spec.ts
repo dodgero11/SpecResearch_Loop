@@ -117,6 +117,27 @@ describe('HttpAiGateway', () => {
     });
   });
 
+  it.each([
+    ['contributionRevision', 'contribution'],
+    ['experimentRevision', 'experiment'],
+    ['evidenceRevision', 'evidence'],
+    ['conferenceReadinessRevision', 'conference-readiness'],
+  ] as const)('%s posts to /ai/v1/revise-section with section_type %s', async (method, sectionType) => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { revised_content: ['c'], summary: 's' }));
+    const gateway = new HttpAiGateway('http://127.0.0.1:8000', 5000);
+
+    await gateway[method](['c'], 'instruction', { problem: 'p' });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://127.0.0.1:8000/ai/v1/revise-section');
+    expect(JSON.parse(String(init.body))).toEqual({
+      section_type: sectionType,
+      current_content: ['c'],
+      instruction: 'instruction',
+      context: { problem: 'p' },
+    });
+  });
+
   it('throws a descriptive error on HTTP failure', async () => {
     fetchMock.mockResolvedValue(jsonResponse(500, { detail: 'boom' }));
     const gateway = new HttpAiGateway('http://127.0.0.1:8000', 5000);
