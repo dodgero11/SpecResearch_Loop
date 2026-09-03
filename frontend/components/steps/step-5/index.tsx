@@ -49,6 +49,33 @@ type RawTemporary = {
   computeBudget: Record<string, unknown>
 }
 
+/**
+ * [FE-fix] Some claimEvidenceMatrix entries can come back from the backend with
+ * missing/mismatched fields (e.g. after an "evidence" issue gets AI-revised —
+ * backend/src/issue.service.ts writes the AI's raw output back without
+ * normalizing it to {claim, baseline, metric, evidence, rejectionCondition}).
+ * Guard against that here instead of printing literal "undefined" text, and
+ * drop entries that are entirely empty rather than showing a blank line.
+ */
+function formatClaimEvidenceMatrix(
+  matrix: Array<{ claim?: string; baseline?: string; metric?: string; evidence?: string; rejectionCondition?: string }>,
+): string[] {
+  const lines = matrix
+    .map((ce) => ({
+      claim: ce.claim || '',
+      baseline: ce.baseline || '',
+      metric: ce.metric || '',
+      evidence: ce.evidence || '',
+      rejectionCondition: ce.rejectionCondition || '',
+    }))
+    .filter((ce) => ce.claim || ce.baseline || ce.metric || ce.evidence || ce.rejectionCondition)
+    .map(
+      (ce) =>
+        `Claim: ${ce.claim || '(chưa có)'} — Baseline: ${ce.baseline || '(chưa có)'} — Metric: ${ce.metric || '(chưa có)'} — Evidence: ${ce.evidence || '(chưa có)'} — Điều kiện bác bỏ: ${ce.rejectionCondition || '(chưa có)'}`,
+    )
+  return lines.length > 0 ? lines : ['Chưa có Claim–Evidence nào.']
+}
+
 function formatComputeBudget(raw: Record<string, unknown>): string {
   if (Object.keys(raw).length === 0) return 'Chưa có ước tính.'
   const model = raw.model_name ?? raw.model ?? '—'
@@ -70,13 +97,7 @@ function toSpecItems(temp: RawTemporary): SpecItem[] {
     {
       title: 'Claim–Evidence Matrix',
       detail: 'Bảng ánh xạ claim và bằng chứng.',
-      fullContent:
-        temp.claimEvidenceMatrix.length > 0
-          ? temp.claimEvidenceMatrix.map(
-              (ce) =>
-                `Claim: ${ce.claim} — Baseline: ${ce.baseline} — Metric: ${ce.metric} — Evidence: ${ce.evidence} — Điều kiện bác bỏ: ${ce.rejectionCondition}`,
-            )
-          : ['Chưa có Claim–Evidence nào.'],
+      fullContent: formatClaimEvidenceMatrix(temp.claimEvidenceMatrix),
     },
     {
       title: 'Experimental Protocol',

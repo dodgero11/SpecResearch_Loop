@@ -18,6 +18,11 @@ export const PRIORITY_SOURCES: PrioritySource[] = [
   { key: 'proceedings', label: 'Proceedings chính thức' },
   { key: 'author', label: 'Tài liệu tác giả' },
   { key: 'survey', label: 'Survey có nguồn rõ ràng' },
+  // [FE-fix] ai_service's related-works prompt returns "preprint" as a valid
+  // source_type (e.g. arXiv medical papers), but there was no filter entry for
+  // it — any such result had no checkbox to enable it and was silently hidden
+  // from the table forever, even though it was saved correctly in the DB.
+  { key: 'preprint', label: 'Preprint (arXiv, chưa peer-review)' },
 ]
 
 export type GapDirection = { letter: string; label: string; description: string; selected?: boolean }

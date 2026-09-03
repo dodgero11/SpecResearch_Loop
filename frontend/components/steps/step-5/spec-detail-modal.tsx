@@ -34,8 +34,12 @@ export function SpecDetailModal({ items, onClose }: SpecDetailModalProps) {
                 <span>{index + 1}</span>
                 {item.title}
               </h3>
-              {item.fullContent.map((paragraph) => (
-                <p key={paragraph}>{paragraph}</p>
+              {/* [FE-fix] key by index, not content — two entries can legitimately
+                  render the same text (e.g. two claim-evidence pairs missing the
+                  same fields), and a duplicate content-string key breaks React's
+                  identity tracking (the "two children with the same key" warning). */}
+              {item.fullContent.map((paragraph, paragraphIndex) => (
+                <p key={paragraphIndex}>{paragraph}</p>
               ))}
             </section>
           ))}
