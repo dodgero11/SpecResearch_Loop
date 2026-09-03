@@ -116,6 +116,14 @@ export interface AiGateway {
   singleClaimExperiment(claimEvidence: Record<string, unknown>): Promise<AiGatewayResponse>;
   finalSpec(payload: Record<string, unknown>): Promise<AiGatewayResponse>;
   conflicts(claimEvidencePairs: unknown[], relatedWorks: unknown[]): Promise<AiGatewayResponse>;
+  /** POST /ai/v1/revise-section — { section_type: "contribution", ... } → { revised_content, summary } */
+  contributionRevision(currentContent: unknown, instruction: string, context: Record<string, unknown>): Promise<AiGatewayResponse>;
+  /** POST /ai/v1/revise-section — { section_type: "experiment", ... } → { revised_content, summary } */
+  experimentRevision(currentContent: unknown, instruction: string, context: Record<string, unknown>): Promise<AiGatewayResponse>;
+  /** POST /ai/v1/revise-section — { section_type: "evidence", ... } → { revised_content, summary } */
+  evidenceRevision(currentContent: unknown, instruction: string, context: Record<string, unknown>): Promise<AiGatewayResponse>;
+  /** POST /ai/v1/revise-section — { section_type: "conference-readiness", ... } → { revised_content, summary } */
+  conferenceReadinessRevision(currentContent: unknown, instruction: string, context: Record<string, unknown>): Promise<AiGatewayResponse>;
 }
 ```
 
@@ -361,6 +369,34 @@ export interface AiGateway {
   ]
 }
 ```
+
+### 4.10 Revise a spec section (judge issue resolution)
+
+`POST /ai/v1/revise-section`
+
+Used when a user resolves a judge issue in Step 5. The backend sends the current section content plus the user's resolution instruction; the AI returns the revised content **in the same shape as the input** so the backend can write it back into the spec. Four `AiGateway` methods map to this endpoint: `contributionRevision`, `experimentRevision`, `evidenceRevision`, `conferenceReadinessRevision`.
+
+**Request** — `section_type` is one of `contribution | experiment | evidence | conference-readiness`.
+
+```json
+{
+  "section_type": "conference-readiness",
+  "current_content": { "gapAnalysis": { "limitation": "..." }, "experimentPlan": { "contributions": [] } },
+  "instruction": "Bổ sung phần Reproducibility: nêu rõ seed, số lần chạy và cấu hình GPU.",
+  "context": { "problem": "...", "gap": "..." }
+}
+```
+
+**Response** — `revised_content` mirrors the input shape; `summary` describes what changed.
+
+```json
+{
+  "revised_content": { "gapAnalysis": { "limitation": "..." }, "experimentPlan": { "contributions": [] } },
+  "summary": "Đã bổ sung mục Reproducibility vào experiment plan."
+}
+```
+
+> **Backend guard:** `issue.service.ts` retries the call up to 3 times when the AI returns empty content (`isEmptyRevision`) and deep-merges the result so a partial/empty revision can never wipe existing spec data.
 
 ---
 

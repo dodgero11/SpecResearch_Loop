@@ -37,15 +37,30 @@ class ArxivService:
                     break
             return results
 
+        # [FE-fix] Not using "with ThreadPoolExecutor() as executor" on purpose:
+        # exiting that block calls shutdown(wait=True), which BLOCKS until the
+        # worker thread actually finishes — even after future.result(timeout=...)
+        # has already raised TimeoutError. That made the "6s timeout" fake: a slow
+        # ArXiv request could still hold this call (and the whole event loop) for
+        # 60-90s+ before the timeout warning ever printed. shutdown(wait=False)
+        # lets us return immediately at the real timeout; the overrunning thread
+        # just finishes on its own in the background and its result is discarded.
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(_fetch)
         try:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(_fetch)
-                return future.result(timeout=timeout_sec)
+            # with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            #     future = executor.submit(_fetch)
+            #     return future.result(timeout=timeout_sec)
+            result = future.result(timeout=timeout_sec)
+            executor.shutdown(wait=False)
+            return result
         except concurrent.futures.TimeoutError:
             print(f"[Warning] ArXiv API query '{query}' timed out after {timeout_sec}s. Falling back to LLM-guided Related Works synthesis...", flush=True)
+            executor.shutdown(wait=False)
             return []
         except Exception as e:
             print(f"[Warning] ArXiv API query error ({e}). Falling back to LLM-guided Related Works synthesis...", flush=True)
+            executor.shutdown(wait=False)
             return []
 
     def search_papers(self, query: str, max_results: int = 5, timeout_sec: float = 6.0) -> List[Dict[str, Any]]:

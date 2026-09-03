@@ -267,6 +267,39 @@ Vòng 1 được tách thành 3 endpoint độc lập (theo `ai-api.md` v2.0):
 
 ---
 
+### Sửa lại một phần Spec khi người dùng chốt Issue — `POST /ai/v1/revise-section`
+*   **Endpoint:** `POST /ai/v1/revise-section`
+*   **Mục đích:** Khi người dùng chọn cách giải quyết một Issue của Judge (Vòng 4), backend gửi nội dung hiện tại của phần spec cần sửa kèm chỉ dẫn; AI trả về nội dung đã sửa **đúng cấu trúc đầu vào** để backend ghi ngược lại vào spec.
+*   **`section_type`:** `contribution` | `experiment` | `evidence` | `conference-readiness`
+
+#### Request Body (JSON)
+```json
+{
+  "section_type": "conference-readiness",
+  "current_content": {
+    "gapAnalysis": { "limitation": "..." },
+    "experimentPlan": { "contributions": [] }
+  },
+  "instruction": "Bổ sung phần Reproducibility: nêu rõ seed, số lần chạy và cấu hình GPU.",
+  "context": { "problem": "...", "gap": "..." }
+}
+```
+
+#### Response Body (JSON - 200 OK)
+```json
+{
+  "revised_content": {
+    "gapAnalysis": { "limitation": "..." },
+    "experimentPlan": { "contributions": [] }
+  },
+  "summary": "Đã bổ sung mục Reproducibility vào experiment plan."
+}
+```
+
+> **Lưu ý tích hợp:** Backend (`issue.service.ts`) tự thử lại tối đa 3 lần nếu AI trả về nội dung rỗng và deep-merge kết quả để không bao giờ xóa dữ liệu spec hiện có.
+
+---
+
 ### Vòng 5 — Bản Spec Cuối & Export
 *   **Endpoint:** `POST /ai/v1/final-spec`
 *   **Mục đích:** Tổng hợp thông tin, lịch sử quyết định để xuất ra file tài liệu Markdown hoàn chỉnh và cấu trúc JSON sạch cho Spec.
