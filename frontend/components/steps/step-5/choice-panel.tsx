@@ -44,6 +44,22 @@ function summarizeRevisionContent(value: unknown): string {
       : undefined
     if (selected) parts.push(`Hướng đã chọn: ${selected.letter}. ${selected.label}`)
     if (parts.length === 0 && typeof record.summary === 'string' && record.summary) parts.push(record.summary)
+    // [FE-fix] "conference-readiness" resolves send back a full-snapshot object
+    // ({ gapAnalysis, experimentPlan, relatedWork }) instead of a single section —
+    // none of the checks above match its shape, so it always fell through to
+    // "(chưa có nội dung)" even though it genuinely had content. Summarize each
+    // piece that's present instead.
+    if (parts.length === 0 && ('gapAnalysis' in record || 'experimentPlan' in record || 'relatedWork' in record)) {
+      const gap = record.gapAnalysis as Record<string, unknown> | undefined
+      if (gap && typeof gap.limitation === 'string' && gap.limitation) parts.push(`Gap: "${gap.limitation}"`)
+      const plan = record.experimentPlan as Record<string, unknown> | undefined
+      const contributions = Array.isArray(plan?.contributions) ? (plan!.contributions as unknown[]) : []
+      if (contributions.length > 0) parts.push(`${contributions.length} contribution`)
+      const experiments = Array.isArray(plan?.experiments) ? (plan!.experiments as unknown[]) : []
+      if (experiments.length > 0) parts.push(`${experiments.length} thí nghiệm`)
+      const relatedWork = Array.isArray(record.relatedWork) ? (record.relatedWork as unknown[]) : []
+      if (relatedWork.length > 0) parts.push(`${relatedWork.length} related work`)
+    }
     return parts.length > 0 ? parts.join(' — ') : '(chưa có nội dung)'
   }
   return String(value)

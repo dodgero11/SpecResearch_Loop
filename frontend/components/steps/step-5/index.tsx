@@ -147,6 +147,7 @@ export default function StepFive() {
     setIssues(mapped)
     if (mapped.length > 0) setHasRunJudges(true)
     setActiveIssueId((prev) => (prev && mapped.some((i) => i.id === prev) ? prev : mapped.find((i) => i.status !== 'RESOLVED')?.id ?? mapped[0]?.id ?? null))
+    return mapped
   }
 
   useEffect(() => {
@@ -190,17 +191,33 @@ export default function StepFive() {
     if (!projectId) return
     setError(null)
     try {
-      const result = await apiPost<{ before?: unknown; after?: unknown }>(`/projects/${projectId}/issues/${issueId}/resolve`, {
-        choice,
-        customChoice,
-      })
-      // `before`/`after` are only present for judge types the backend actually
-      // rewrites content for (currently just "gap") — undefined otherwise.
+      const result = await apiPost<{ before?: unknown; after?: unknown; updatedIssue?: { id?: string } }>(
+        `/projects/${projectId}/issues/${issueId}/resolve`,
+        { choice, customChoice },
+      )
+      // [FE-fix] Key the diff by `updatedIssue.id`, not the `issueId` we sent —
+      // resolving clones every issue forward onto the new spec version (see
+      // issue.service.ts), so the row we just resolved can come back with a
+      // DIFFERENT id than what we requested. The refetch below (loadIssues)
+      // reads issues from that new version, so activeIssue.id afterward will be
+      // this new id — keying by the old `issueId` here made the lookup miss
+      // every time, showing "diff mất" even though nothing was actually lost.
+      // if (result.before !== undefined || result.after !== undefined) {
+      //   setResolutionDiffs((prev) => ({ ...prev, [issueId]: { before: result.before, after: result.after } }))
+      // }
+      const resolvedId = result.updatedIssue?.id ?? issueId
       if (result.before !== undefined || result.after !== undefined) {
-        setResolutionDiffs((prev) => ({ ...prev, [issueId]: { before: result.before, after: result.after } }))
+        setResolutionDiffs((prev) => ({ ...prev, [resolvedId]: { before: result.before, after: result.after } }))
       }
-      setIssues((prev) => prev.map((issue) => (issue.id === issueId ? { ...issue, status: 'RESOLVED' } : issue)))
-      setActiveIssueId(issues.find((i) => i.id !== issueId && i.status !== 'RESOLVED')?.id ?? null)
+      // Re-fetch the real issue list from the server instead of only patching
+      // this one issue's status locally — resolving can make the backend's
+      // judge re-run (issue.service.ts's rerunJudge) flag brand-new issues too,
+      // and a local-only patch silently missed those until the user manually
+      // reloaded the page. Advance past the just-resolved issue ourselves
+      // afterward: loadIssues keeps the current activeIssueId if it still
+      // exists in the list, which would leave the resolved issue selected.
+      const refreshed = await loadIssues(projectId)
+      setActiveIssueId(refreshed.find((i) => i.id !== resolvedId && i.status !== 'RESOLVED')?.id ?? null)
       // Refresh the temporary spec panel so the user sees the revised content.
       const temp = await apiGet<RawTemporary>(`/projects/${projectId}/spec/temporary`)
       setSpecItems(toSpecItems(temp))

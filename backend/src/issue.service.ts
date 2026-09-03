@@ -230,10 +230,32 @@ export class IssueService {
             unknown
           >;
           const contributions = Array.isArray(experimentPlan.contributions)
-            ? experimentPlan.contributions
+            ? (experimentPlan.contributions as Array<Record<string, unknown>>)
             : [];
           before = contributions;
-          after = revisionResult;
+          // [FE-fix] Merge the AI's revised labels back onto the ORIGINAL
+          // contributions instead of replacing the whole array with the AI's
+          // output — this is what actually preserves claimEvidence (and id, and
+          // anything else the AI wasn't asked to touch). callRevisionForJudge
+          // above now only sends/returns {id, label}[] for this judge type, by
+          // design — see the comment there for why.
+          // after = revisionResult;
+          // await this.projects.createSpec(projectId, {
+          //   ...data,
+          //   experimentPlan: { ...experimentPlan, contributions: after },
+          // });
+          const revisedLabels = Array.isArray(revisionResult)
+            ? (revisionResult as Array<{ id?: unknown; label?: unknown }>)
+            : [];
+          after = contributions.map((c, index) => {
+            const match =
+              revisedLabels.find(
+                (r) => r.id !== undefined && r.id === c.id,
+              ) ?? revisedLabels[index];
+            const newLabel =
+              typeof match?.label === "string" ? match.label.trim() : "";
+            return newLabel ? { ...c, label: newLabel } : c;
+          });
           await this.projects.createSpec(projectId, {
             ...data,
             experimentPlan: { ...experimentPlan, contributions: after },
@@ -418,11 +440,21 @@ export class IssueService {
       }
     }
 
-    // Forward-only: re-run the flagging judge, persist its issues idempotently
-    // (a RESOLVED issue stays RESOLVED even if re-flagged), and mark the judge
-    // node FRESH — no step needs to be re-run by the frontend.
-    const judgeResult = await this.judges.rerunJudge(projectId, judgeType);
-    return { updatedIssue, invalidatedNodes, judgeResult, before, after };
+    // [FE-fix] Stopped auto-rerunning the flagging judge here. It silently kept
+    // spawning brand-new issues right after every single resolve — including
+    // factually wrong ones (confirmed live: it re-flagged "Experiments đang để
+    // trống" immediately after a resolve that filled in 5 detailed TN1-TN5
+    // protocols, which were verifiably present in the DB). That turned every
+    // resolve into a whack-a-mole loop the user could never actually finish,
+    // since "Xác nhận & xuất Spec cuối" requires 100% of issues resolved. Judge
+    // re-verification is still available — it's just an explicit action now
+    // ("Chạy lại đánh giá Judge" on the full panel), matching Bước 10's
+    // intended flow (Sửa spec → Hiển thị thay đổi → Chạy lại verifier khi
+    // NGƯỜI DÙNG chọn → Judge kiểm tra lại → Xác nhận), instead of an automatic
+    // side effect baked into every single resolve click.
+    // const judgeResult = await this.judges.rerunJudge(projectId, judgeType);
+    // return { updatedIssue, invalidatedNodes, judgeResult, before, after };
+    return { updatedIssue, invalidatedNodes, judgeResult: null, before, after };
   }
 
   /**
@@ -457,14 +489,33 @@ export class IssueService {
         unknown
       >;
       const contributions = Array.isArray(experimentPlan.contributions)
-        ? experimentPlan.contributions
+        ? (experimentPlan.contributions as Array<Record<string, unknown>>)
         : [];
+      // [FE-fix] Only send {id, label} to the AI instead of the full
+      // contribution objects. Sending the full objects (each with a nested
+      // claimEvidence sub-object) let the LLM mangle that nested structure when
+      // rewriting the array — confirmed live: a resolve turned claimEvidence
+      // into the literal string "claim" and scrambled every other field's
+      // key/value pairing. The label is the only thing this revision is
+      // actually about, so only send that; see the "contribution" branch below
+      // (in resolve()) for how the result gets merged back without touching
+      // claimEvidence.
+      // const response = await this.ai.contributionRevision(
+      //   contributions,
+      //   instruction,
+      //   context,
+      // );
+      // return response.output.revised_content ?? contributions;
+      const labelsOnly = contributions.map((c) => ({
+        id: c.id,
+        label: c.label,
+      }));
       const response = await this.ai.contributionRevision(
-        contributions,
+        labelsOnly,
         instruction,
         context,
       );
-      return response.output.revised_content ?? contributions;
+      return response.output.revised_content ?? labelsOnly;
     }
     if (judgeType === "experiment") {
       const experimentPlan = (data.experimentPlan ?? {}) as Record<

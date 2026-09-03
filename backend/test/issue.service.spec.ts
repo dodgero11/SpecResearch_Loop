@@ -119,10 +119,13 @@ describe("IssueService", () => {
       { choice: "A", customChoice: undefined },
       tx,
     );
-    expect(judges.rerunJudge).toHaveBeenCalledWith(
-      "project-1",
-      "contribution",
-    );
+    // [FE-fix] resolve() no longer auto-reruns the flagging judge — see the
+    // comment above `return { updatedIssue, ... }` in issue.service.ts for why.
+    // expect(judges.rerunJudge).toHaveBeenCalledWith(
+    //   "project-1",
+    //   "contribution",
+    // );
+    expect(judges.rerunJudge).not.toHaveBeenCalled();
     expect(result.updatedIssue.status).toBe("RESOLVED");
     expect(result.invalidatedNodes).toEqual(
       expect.arrayContaining(["contribution", "claim", "experiment", "judge"]),
@@ -222,7 +225,8 @@ describe("IssueService", () => {
         customResolution: undefined,
       },
     });
-    expect(judges.rerunJudge).toHaveBeenCalledWith("project-1", "gap");
+    // expect(judges.rerunJudge).toHaveBeenCalledWith("project-1", "gap");
+    expect(judges.rerunJudge).not.toHaveBeenCalled();
     expect(result.after).toEqual({
       whatWasDone: "done",
       limitation: "new limitation",
@@ -307,10 +311,11 @@ describe("IssueService", () => {
         customResolution: undefined,
       },
     });
-    expect(judges.rerunJudge).toHaveBeenCalledWith(
-      "project-1",
-      "contribution",
-    );
+    // expect(judges.rerunJudge).toHaveBeenCalledWith(
+    //   "project-1",
+    //   "contribution",
+    // );
+    expect(judges.rerunJudge).not.toHaveBeenCalled();
     expect(result.updatedIssue.status).toBe("RESOLVED");
   });
 
@@ -385,10 +390,11 @@ describe("IssueService", () => {
       },
       gapAnalysis: { limitation: "gap" },
     });
-    expect(judges.rerunJudge).toHaveBeenCalledWith(
-      "project-1",
-      "contribution",
-    );
+    // expect(judges.rerunJudge).toHaveBeenCalledWith(
+    //   "project-1",
+    //   "contribution",
+    // );
+    expect(judges.rerunJudge).not.toHaveBeenCalled();
     expect(result.after).toEqual([{ id: "c1", label: "New contribution" }]);
   });
 
@@ -463,7 +469,8 @@ describe("IssueService", () => {
       },
       gapAnalysis: { limitation: "gap" },
     });
-    expect(judges.rerunJudge).toHaveBeenCalledWith("project-1", "experiment");
+    // expect(judges.rerunJudge).toHaveBeenCalledWith("project-1", "experiment");
+    expect(judges.rerunJudge).not.toHaveBeenCalled();
     expect(result.after).toEqual([{ name: "TN1", protocol: "new" }]);
   });
 
@@ -550,7 +557,8 @@ describe("IssueService", () => {
       },
       gapAnalysis: { limitation: "gap" },
     });
-    expect(judges.rerunJudge).toHaveBeenCalledWith("project-1", "evidence");
+    // expect(judges.rerunJudge).toHaveBeenCalledWith("project-1", "evidence");
+    expect(judges.rerunJudge).not.toHaveBeenCalled();
     expect(result.after).toEqual([{ claim: "Claim 1", evidence: "new" }]);
   });
 
@@ -628,10 +636,11 @@ describe("IssueService", () => {
       gapAnalysis: { limitation: "new gap" },
       relatedWork: [],
     });
-    expect(judges.rerunJudge).toHaveBeenCalledWith(
-      "project-1",
-      "conference-readiness",
-    );
+    // expect(judges.rerunJudge).toHaveBeenCalledWith(
+    //   "project-1",
+    //   "conference-readiness",
+    // );
+    expect(judges.rerunJudge).not.toHaveBeenCalled();
     expect(result.after).toEqual({
       gapAnalysis: { limitation: "new gap" },
       experimentPlan: { contributions: [], experiments: [] },
