@@ -149,136 +149,216 @@ export class IssueService {
     };
 
     try {
-      if (judgeType === "gap") {
-        const gapCandidate =
-          cards.find((card) => card.type === SpecCardType.GAP_CANDIDATE)
-            ?.content ?? "";
-        const relatedWorks = Array.isArray(data.relatedWork)
-          ? data.relatedWork
-          : [];
-        const response = await this.ai.gapAnalysis(
-          gapCandidate,
-          relatedWorks,
-          instruction,
-        );
-        const output = response.output;
-        before = data.gapAnalysis;
-        after = {
-          whatWasDone: String(output.what_was_done ?? ""),
-          limitation: String(output.limitation ?? ""),
-          whyItMatters: String(output.why_it_matters ?? ""),
-          testableWith: String(output.testable_with ?? ""),
-          directions: Array.isArray(output.directions)
-            ? output.directions
-            : [],
-        };
-        await this.projects.createSpec(projectId, {
-          ...data,
-          gapAnalysis: after,
-        });
-      } else if (judgeType === "contribution") {
-        const experimentPlan = (data.experimentPlan ?? {}) as Record<
-          string,
-          unknown
-        >;
-        const contributions = Array.isArray(experimentPlan.contributions)
-          ? experimentPlan.contributions
-          : [];
-        before = contributions;
-        const response = await this.ai.contributionRevision(
-          contributions,
+      // Retry the AI revision up to 3 times with the same instruction. LLM
+      // responses are non-deterministic, so a retry often succeeds where the
+      // first call returned empty. If all attempts return empty, we fall back
+      // to preserving the existing content (no destructive wipe).
+      const MAX_REVISION_ATTEMPTS = 3;
+      let revisionResult: unknown = null;
+
+      for (let attempt = 1; attempt <= MAX_REVISION_ATTEMPTS; attempt++) {
+        const result = await this.callRevisionForJudge(
+          judgeType,
+          data,
+          cards,
           instruction,
           context,
         );
-        after = response.output.revised_content ?? contributions;
-        await this.projects.createSpec(projectId, {
-          ...data,
-          experimentPlan: { ...experimentPlan, contributions: after },
-        });
-      } else if (judgeType === "experiment") {
-        const experimentPlan = (data.experimentPlan ?? {}) as Record<
-          string,
-          unknown
-        >;
-        const experiments = Array.isArray(experimentPlan.experiments)
-          ? experimentPlan.experiments
-          : [];
-        before = experiments;
-        const response = await this.ai.experimentRevision(
-          experiments,
-          instruction,
-          context,
-        );
-        after = response.output.revised_content ?? experiments;
-        await this.projects.createSpec(projectId, {
-          ...data,
-          experimentPlan: { ...experimentPlan, experiments: after },
-        });
-      } else if (judgeType === "evidence") {
-        const experimentPlan = (data.experimentPlan ?? {}) as Record<
-          string,
-          unknown
-        >;
-        const contributions = Array.isArray(experimentPlan.contributions)
-          ? (experimentPlan.contributions as Array<Record<string, unknown>>)
-          : [];
-        const claimEvidencePairs = contributions
-          .filter((c) => c.claimEvidence)
-          .map((c) => c.claimEvidence);
-        before = claimEvidencePairs;
-        const response = await this.ai.evidenceRevision(
-          claimEvidencePairs,
-          instruction,
-          context,
-        );
-        const revisedPairs = (response.output.revised_content ??
-          claimEvidencePairs) as unknown[];
-        let pairIndex = 0;
-        const revisedContributions = contributions.map((c) => {
-          if (c.claimEvidence && pairIndex < revisedPairs.length) {
-            return { ...c, claimEvidence: revisedPairs[pairIndex++] };
-          }
-          return c;
-        });
-        after = revisedPairs;
-        await this.projects.createSpec(projectId, {
-          ...data,
-          experimentPlan: {
-            ...experimentPlan,
-            contributions: revisedContributions,
-          },
-        });
-      } else if (judgeType === "conference-readiness") {
-        const fullSnapshot = {
-          gapAnalysis: data.gapAnalysis,
-          experimentPlan: data.experimentPlan,
-          relatedWork: data.relatedWork,
-        };
-        before = fullSnapshot;
-        const response = await this.ai.conferenceReadinessRevision(
-          fullSnapshot,
-          instruction,
-          context,
-        );
-        const revised = (response.output.revised_content ?? {}) as Record<
-          string,
-          unknown
-        >;
-        after = revised;
-        const nextData = { ...data };
-        if (revised.gapAnalysis !== undefined) {
-          nextData.gapAnalysis = revised.gapAnalysis;
+        if (!this.isEmptyRevision(judgeType, result)) {
+          this.logger.log(
+            `[IssueService] ${judgeType} revision succeeded on attempt ${attempt}/${MAX_REVISION_ATTEMPTS}`,
+          );
+          revisionResult = result;
+          break;
         }
-        if (revised.experimentPlan !== undefined) {
-          nextData.experimentPlan = {
-            ...((data.experimentPlan ?? {}) as object),
-            ...(revised.experimentPlan as object),
+        if (attempt < MAX_REVISION_ATTEMPTS) {
+          this.logger.warn(
+            `[IssueService] ${judgeType} revision returned empty on attempt ${attempt}/${MAX_REVISION_ATTEMPTS}, retrying...`,
+          );
+        } else {
+          this.logger.error(
+            `[IssueService] ${judgeType} revision returned empty on all ${MAX_REVISION_ATTEMPTS} attempts. Falling back to preserving existing content.`,
+          );
+        }
+      }
+
+      // Only apply the revision if we got a non-empty result. Each judge
+      // applies its own section with guards that preserve existing data when
+      // the AI returned empty/malformed content.
+      if (revisionResult !== null) {
+        if (judgeType === "gap") {
+          const output = revisionResult as Record<string, unknown>;
+          const existingGap = (data.gapAnalysis ?? {}) as Record<
+            string,
+            unknown
+          >;
+          const afterGap: Record<string, unknown> = {
+            whatWasDone: String(output.what_was_done ?? ""),
+            limitation: String(output.limitation ?? ""),
+            whyItMatters: String(output.why_it_matters ?? ""),
+            testableWith: String(output.testable_with ?? ""),
+            directions: Array.isArray(output.directions)
+              ? output.directions
+              : [],
           };
+          // Preserve each existing field if the AI returned it empty.
+          for (const key of [
+            "limitation",
+            "whatWasDone",
+            "whyItMatters",
+            "testableWith",
+          ]) {
+            if (!String(afterGap[key] ?? "").trim() && existingGap[key]) {
+              afterGap[key] = existingGap[key];
+            }
+          }
+          if (
+            !Array.isArray(afterGap.directions) ||
+            afterGap.directions.length === 0
+          ) {
+            afterGap.directions = existingGap.directions ?? [];
+          }
+          before = data.gapAnalysis;
+          after = afterGap;
+          await this.projects.createSpec(projectId, {
+            ...data,
+            gapAnalysis: afterGap,
+          });
+        } else if (judgeType === "contribution") {
+          const experimentPlan = (data.experimentPlan ?? {}) as Record<
+            string,
+            unknown
+          >;
+          const contributions = Array.isArray(experimentPlan.contributions)
+            ? experimentPlan.contributions
+            : [];
+          before = contributions;
+          after = revisionResult;
+          await this.projects.createSpec(projectId, {
+            ...data,
+            experimentPlan: { ...experimentPlan, contributions: after },
+          });
+        } else if (judgeType === "experiment") {
+          const experimentPlan = (data.experimentPlan ?? {}) as Record<
+            string,
+            unknown
+          >;
+          const experiments = Array.isArray(experimentPlan.experiments)
+            ? experimentPlan.experiments
+            : [];
+          before = experiments;
+          after = revisionResult;
+          await this.projects.createSpec(projectId, {
+            ...data,
+            experimentPlan: { ...experimentPlan, experiments: after },
+          });
+        } else if (judgeType === "evidence") {
+          const experimentPlan = (data.experimentPlan ?? {}) as Record<
+            string,
+            unknown
+          >;
+          const contributions = Array.isArray(experimentPlan.contributions)
+            ? (experimentPlan.contributions as Array<Record<string, unknown>>)
+            : [];
+          const claimEvidencePairs = contributions
+            .filter((c) => c.claimEvidence)
+            .map((c) => c.claimEvidence);
+          const revisedPairs = revisionResult as unknown[];
+          let pairIndex = 0;
+          const revisedContributions = contributions.map((c) => {
+            if (c.claimEvidence && pairIndex < revisedPairs.length) {
+              return { ...c, claimEvidence: revisedPairs[pairIndex++] };
+            }
+            return c;
+          });
+          before = claimEvidencePairs;
+          after = revisedPairs;
+          await this.projects.createSpec(projectId, {
+            ...data,
+            experimentPlan: {
+              ...experimentPlan,
+              contributions: revisedContributions,
+            },
+          });
+        } else if (judgeType === "conference-readiness") {
+          const revised = revisionResult as Record<string, unknown>;
+          before = {
+            gapAnalysis: data.gapAnalysis,
+            experimentPlan: data.experimentPlan,
+            relatedWork: data.relatedWork,
+          };
+          after = revised;
+          const nextData = { ...data };
+
+          // gapAnalysis: deep-merge, preserve non-empty existing fields.
+          if (
+            revised.gapAnalysis !== undefined &&
+            typeof revised.gapAnalysis === "object" &&
+            revised.gapAnalysis !== null
+          ) {
+            const existingGap =
+              typeof data.gapAnalysis === "object" &&
+              data.gapAnalysis !== null
+                ? (data.gapAnalysis as Record<string, unknown>)
+                : {};
+            const revisedGap = revised.gapAnalysis as Record<string, unknown>;
+            const merged: Record<string, unknown> = { ...existingGap };
+            for (const [key, value] of Object.entries(revisedGap)) {
+              if (value !== undefined && value !== null && value !== "") {
+                merged[key] = value;
+              }
+            }
+            nextData.gapAnalysis = merged;
+          }
+
+          // experimentPlan: deep-merge, but guard empty arrays.
+          if (
+            revised.experimentPlan !== undefined &&
+            typeof revised.experimentPlan === "object" &&
+            revised.experimentPlan !== null
+          ) {
+            const existingPlan = (data.experimentPlan ?? {}) as Record<
+              string,
+              unknown
+            >;
+            const revisedPlan = revised.experimentPlan as Record<
+              string,
+              unknown
+            >;
+            const mergedPlan: Record<string, unknown> = {
+              ...existingPlan,
+              ...revisedPlan,
+            };
+            if (
+              Array.isArray(mergedPlan.contributions) &&
+              mergedPlan.contributions.length === 0 &&
+              Array.isArray(existingPlan.contributions) &&
+              existingPlan.contributions.length > 0
+            ) {
+              mergedPlan.contributions = existingPlan.contributions;
+            }
+            if (
+              Array.isArray(mergedPlan.experiments) &&
+              mergedPlan.experiments.length === 0 &&
+              Array.isArray(existingPlan.experiments) &&
+              existingPlan.experiments.length > 0
+            ) {
+              mergedPlan.experiments = existingPlan.experiments;
+            }
+            nextData.experimentPlan = mergedPlan;
+          }
+
+          // relatedWork: don't overwrite with null or empty array.
+          if (
+            revised.relatedWork !== undefined &&
+            Array.isArray(revised.relatedWork) &&
+            revised.relatedWork.length > 0
+          ) {
+            nextData.relatedWork = revised.relatedWork;
+          }
+
+          await this.projects.createSpec(projectId, nextData);
         }
-        if (revised.relatedWork !== undefined) {
-          nextData.relatedWork = revised.relatedWork;
-        }
-        await this.projects.createSpec(projectId, nextData);
       }
     } catch (error) {
       this.logger.warn(
@@ -343,6 +423,116 @@ export class IssueService {
     // node FRESH — no step needs to be re-run by the frontend.
     const judgeResult = await this.judges.rerunJudge(projectId, judgeType);
     return { updatedIssue, invalidatedNodes, judgeResult, before, after };
+  }
+
+  /**
+   * Calls the AI revision for a judge type and returns the raw revision result
+   * (the value that will be applied to the spec). Returns null/empty if the AI
+   * produced no meaningful content.
+   */
+  private async callRevisionForJudge(
+    judgeType: JudgeType,
+    data: SpecData,
+    cards: { type: SpecCardType; content: string }[],
+    instruction: string,
+    context: { problem: string; gap: string },
+  ): Promise<unknown> {
+    if (judgeType === "gap") {
+      const gapCandidate =
+        cards.find((card) => card.type === SpecCardType.GAP_CANDIDATE)
+          ?.content ?? "";
+      const relatedWorks = Array.isArray(data.relatedWork)
+        ? data.relatedWork
+        : [];
+      const response = await this.ai.gapAnalysis(
+        gapCandidate,
+        relatedWorks,
+        instruction,
+      );
+      return response.output;
+    }
+    if (judgeType === "contribution") {
+      const experimentPlan = (data.experimentPlan ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const contributions = Array.isArray(experimentPlan.contributions)
+        ? experimentPlan.contributions
+        : [];
+      const response = await this.ai.contributionRevision(
+        contributions,
+        instruction,
+        context,
+      );
+      return response.output.revised_content ?? contributions;
+    }
+    if (judgeType === "experiment") {
+      const experimentPlan = (data.experimentPlan ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const experiments = Array.isArray(experimentPlan.experiments)
+        ? experimentPlan.experiments
+        : [];
+      const response = await this.ai.experimentRevision(
+        experiments,
+        instruction,
+        context,
+      );
+      return response.output.revised_content ?? experiments;
+    }
+    if (judgeType === "evidence") {
+      const experimentPlan = (data.experimentPlan ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const contributions = Array.isArray(experimentPlan.contributions)
+        ? (experimentPlan.contributions as Array<Record<string, unknown>>)
+        : [];
+      const claimEvidencePairs = contributions
+        .filter((c) => c.claimEvidence)
+        .map((c) => c.claimEvidence);
+      const response = await this.ai.evidenceRevision(
+        claimEvidencePairs,
+        instruction,
+        context,
+      );
+      return response.output.revised_content ?? claimEvidencePairs;
+    }
+    // conference-readiness
+    const fullSnapshot = {
+      gapAnalysis: data.gapAnalysis,
+      experimentPlan: data.experimentPlan,
+      relatedWork: data.relatedWork,
+    };
+    const response = await this.ai.conferenceReadinessRevision(
+      fullSnapshot,
+      instruction,
+      context,
+    );
+    return response.output.revised_content ?? {};
+  }
+
+  /**
+   * Checks whether a revision result is "empty" (null, empty object, or missing
+   * key fields). Used to decide whether to retry the AI call.
+   */
+  private isEmptyRevision(judgeType: JudgeType, result: unknown): boolean {
+    if (result === null || result === undefined) return true;
+    if (typeof result !== "object") return false;
+    const obj = result as Record<string, unknown>;
+    if (judgeType === "gap") {
+      // Gap revision is empty if `limitation` is missing or blank.
+      return !String(obj.limitation ?? "").trim();
+    }
+    if (judgeType === "conference-readiness") {
+      // Conference-readiness returns { gapAnalysis?, experimentPlan?, relatedWork? }.
+      // Empty if all sub-sections are missing/empty.
+      return Object.keys(obj).length === 0;
+    }
+    // contribution / experiment / evidence return arrays.
+    if (Array.isArray(result)) return result.length === 0;
+    return Object.keys(obj).length === 0;
   }
 
   /**

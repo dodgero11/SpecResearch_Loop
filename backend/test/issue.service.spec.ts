@@ -638,6 +638,61 @@ describe("IssueService", () => {
     });
   });
 
+  it("resolve preserves gapAnalysis when conference-readiness AI returns empty content", async () => {
+    prisma.judgeIssue.findFirst.mockResolvedValue({
+      id: "issue-1",
+      projectId: "project-1",
+      judgeType: "conference-readiness",
+      specIterationId: "spec-1",
+      title: "Readiness issue",
+      description: "Readiness description",
+      choices: [{ letter: "A", understanding: "Cải thiện clarity" }],
+    });
+    projects.latestSpec.mockResolvedValue({
+      id: "spec-1",
+      version: 1,
+      data: {
+        experimentPlan: { contributions: [], experiments: [] },
+        gapAnalysis: { limitation: "original gap" },
+        relatedWork: [],
+      },
+    });
+    prisma.specCard.findMany.mockResolvedValue([
+      { type: "PROBLEM", content: "Problem" },
+    ]);
+    // AI returns empty content on every attempt.
+    ai.conferenceReadinessRevision.mockResolvedValue({
+      output: { revised_content: {}, summary: "s" },
+    });
+    judges.rerunJudge.mockResolvedValue({
+      type: "conference-readiness",
+      status: "COMPLETED",
+      specVersionUsed: 1,
+      output: { issues: [] },
+    });
+    const tx = {
+      judgeIssue: {
+        update: jest
+          .fn()
+          .mockResolvedValue({ id: "issue-1", status: "RESOLVED" }),
+      },
+      decisionLog: { create: jest.fn().mockResolvedValue({}) },
+      researchProject: {
+        findUnique: jest.fn().mockResolvedValue({ id: "project-1" }),
+      },
+    };
+    prisma.$transaction.mockImplementation((cb: (t: typeof tx) => unknown) =>
+      cb(tx),
+    );
+
+    const result = await service.resolve("project-1", "issue-1", "A");
+
+    // No spec write happens — the existing gap is preserved (not wiped).
+    expect(projects.createSpec).not.toHaveBeenCalled();
+    expect(ai.conferenceReadinessRevision).toHaveBeenCalledTimes(3);
+    expect(result.after).toBeUndefined();
+  });
+
   it("resolve syncs the CONTRIBUTION seed card with the revised contributions", async () => {
     prisma.judgeIssue.findFirst.mockResolvedValue({
       id: "issue-1",
